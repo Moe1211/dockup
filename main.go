@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -39,8 +38,7 @@ func main() {
 
 	// Load Config
 	if err := loadConfig(*configFile); err != nil {
-		log.Fatalf("❌ Failed to load config: %v", err)
-		log.Fatalf("   Check that %s exists and contains valid JSON", *configFile)
+		log.Fatalf("❌ Failed to load config: %v\n   Check that %s exists and contains valid JSON", err, *configFile)
 	}
 
 	// Routes
@@ -49,13 +47,8 @@ func main() {
 
 	log.Printf("🚀 DockUp Agent running on :%s, watching %d apps", *port, len(registry))
 	
-	// Check if port is already in use
-	listener, err := net.Listen("tcp", ":"+*port)
-	if err != nil {
-		log.Fatalf("❌ Failed to bind to port %s: %v\n   Port may already be in use. Check with: netstat -tuln | grep %s", *port, err, *port)
-	}
-	listener.Close()
-	
+	// Start server - http.ListenAndServe will fail immediately if port is in use
+	// No separate port check needed as it would create a race condition
 	log.Fatal(http.ListenAndServe(":"+*port, nil))
 }
 
@@ -226,4 +219,3 @@ func runDeploy(appName string, config AppConfig) {
 		log.Printf("✅ Deploy SUCCESS for %s", appName)
 	}
 }
-
