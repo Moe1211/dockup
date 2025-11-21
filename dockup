@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.20"
+DOCKUP_VERSION="1.0.21"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -1513,9 +1513,16 @@ cmd_list() {
         fi
         
         # Check if docker-compose is running
-        if ssh $REMOTE "cd \"$APP_PATH\" && docker compose -f \"$APP_COMPOSE\" ps --format json 2>/dev/null | jq -e '. | length > 0' > /dev/null 2>&1" 2>/dev/null; then
-            CONTAINER_COUNT=$(ssh $REMOTE "cd \"$APP_PATH\" && docker compose -f \"$APP_COMPOSE\" ps --format json 2>/dev/null | jq 'length'" 2>/dev/null || echo "0")
-            echo -e "   ${GREEN}Containers:${NC}  $CONTAINER_COUNT running"
+        # Count only running containers (filter by State == "running")
+        RUNNING_COUNT=$(ssh $REMOTE "cd \"$APP_PATH\" && docker compose -f \"$APP_COMPOSE\" ps --format json 2>/dev/null | jq '[.[] | select(.State == \"running\")] | length'" 2>/dev/null || echo "0")
+        TOTAL_COUNT=$(ssh $REMOTE "cd \"$APP_PATH\" && docker compose -f \"$APP_COMPOSE\" ps --format json 2>/dev/null | jq 'length'" 2>/dev/null || echo "0")
+        
+        if [ "$RUNNING_COUNT" != "0" ] && [ -n "$RUNNING_COUNT" ]; then
+            if [ "$RUNNING_COUNT" = "$TOTAL_COUNT" ]; then
+                echo -e "   ${GREEN}Containers:${NC}  $RUNNING_COUNT running"
+            else
+                echo -e "   ${GREEN}Containers:${NC}  $RUNNING_COUNT/$TOTAL_COUNT running"
+            fi
         else
             echo -e "   ${YELLOW}Containers:${NC}  Not running"
         fi

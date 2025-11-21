@@ -18,3 +18,12 @@ _remote_install.sh
 # Go workspace file
 go.work
 
+# Temporary output files
+Setting
+Reloading
+Installing
+GitHub
+Configuring
+
+# Misc
+test.tape
