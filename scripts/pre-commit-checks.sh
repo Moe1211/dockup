@@ -19,6 +19,55 @@ echo ""
 # Track if any checks failed
 FAILED=0
 
+# Function to increment version in dockup script
+increment_version() {
+    local dockup_file="$PROJECT_ROOT/dockup"
+    
+    if [ ! -f "$dockup_file" ]; then
+        echo -e "${YELLOW}⚠️  dockup file not found, skipping version increment${NC}"
+        return 0
+    fi
+    
+    # Extract current version
+    local current_version=$(grep -E '^DOCKUP_VERSION=' "$dockup_file" | cut -d'"' -f2 || echo "")
+    
+    if [ -z "$current_version" ]; then
+        echo -e "${YELLOW}⚠️  Could not find DOCKUP_VERSION in dockup script${NC}"
+        return 0
+    fi
+    
+    # Split version into parts (e.g., "1.0.5" -> ["1", "0", "5"])
+    IFS='.' read -ra version_parts <<< "$current_version"
+    
+    # Get array length and last index
+    local num_parts=${#version_parts[@]}
+    local last_index=$((num_parts - 1))
+    
+    # Get the last part (patch version)
+    local patch_version="${version_parts[$last_index]}"
+    
+    # Increment patch version
+    local new_patch_version=$((patch_version + 1))
+    
+    # Reconstruct version with incremented patch
+    local new_version="${version_parts[0]}.${version_parts[1]}.${new_patch_version}"
+    
+    # Update the file (use a temporary file for portability)
+    local temp_file=$(mktemp)
+    sed "s/^DOCKUP_VERSION=\"${current_version}\"/DOCKUP_VERSION=\"${new_version}\"/" "$dockup_file" > "$temp_file"
+    mv "$temp_file" "$dockup_file"
+    
+    # Stage the updated file
+    git add "$dockup_file" 2>/dev/null || true
+    
+    echo -e "${GREEN}✓ Version incremented: v${current_version} → v${new_version}${NC}"
+}
+
+# 0. Auto-increment version
+echo -e "${YELLOW}📋 Step 0: Auto-increment version${NC}"
+increment_version
+echo ""
+
 # Function to run a check and track failures
 run_check() {
     local name="$1"
