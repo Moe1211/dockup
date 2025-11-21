@@ -1,11 +1,12 @@
 #!/bin/bash
 # DockUp: The Zero-Bloat PaaS CLI
 # Usage: 
-#   ./dockup setup user@vps-ip      -> Run once to install Docker/Agent on VPS
-#   ./dockup init user@vps-ip       -> Run inside a git repo to deploy it
-#   ./dockup deploy user@vps-ip      -> Unified: setup + init + deploy
-#   ./dockup disconnect user@vps-ip  -> Unlink project (keeps app directory)
-#   ./dockup remove user@vps-ip      -> Delete project completely
+#   ./dockup user@vps-ip setup      -> Run once to install Docker/Agent on VPS
+#   ./dockup user@vps-ip init       -> Run inside a git repo to deploy it
+#   ./dockup user@vps-ip deploy     -> Unified: setup + init + deploy
+#   ./dockup user@vps-ip list       -> List all registered apps
+#   ./dockup user@vps-ip disconnect -> Unlink project (keeps app directory)
+#   ./dockup user@vps-ip remove     -> Delete project completely
 
 set -e
 GREEN='\033[0;32m'
@@ -15,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this on releases
-DOCKUP_VERSION="1.0.11"
+DOCKUP_VERSION="1.0.12"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -193,7 +194,6 @@ check_for_updates() {
     fi
 }
 
-REMOTE=$2
 # Try to find main.go in multiple locations:
 # 1. Same directory as script (local development)
 # 2. ~/.local/share/dockup/main.go (user install)
@@ -261,7 +261,7 @@ systemctl daemon-reload
 systemctl enable --now dockup
 
 echo ">> GitHub App configuration required"
-echo "   Run 'dockup configure-github-app user@vps-ip' to set up GitHub App credentials"
+echo "   Run 'dockup user@vps-ip configure-github-app' to set up GitHub App credentials"
 EOF
 }
 
@@ -270,11 +270,11 @@ cmd_setup() {
     # Check for updates
     check_for_updates
     
-    # REMOTE can be passed as argument or use global REMOTE
-    SETUP_REMOTE="${1:-$REMOTE}"
+    # REMOTE is passed as first argument
+    SETUP_REMOTE="$1"
     
     if [ -z "$SETUP_REMOTE" ]; then 
-        echo -e "${RED}Usage: ./dockup setup user@host${NC}"; 
+        echo -e "${RED}Usage: ./dockup user@host setup${NC}"; 
         exit 1
     fi
 
@@ -339,7 +339,7 @@ cmd_setup() {
     echo -e "${YELLOW}📋 Important Next Steps:${NC}"
     echo ""
     echo -e "${YELLOW}1. Configure GitHub App credentials:${NC}"
-    echo "   Run: dockup configure-github-app $SETUP_REMOTE"
+    echo "   Run: dockup $SETUP_REMOTE configure-github-app"
     echo "   See GITHUB_APP_SETUP.md for detailed instructions"
     echo ""
     echo -e "${YELLOW}2. Make sure your VPS firewall allows port 8080:${NC}"
@@ -347,7 +347,7 @@ cmd_setup() {
     echo ""
     echo -e "${YELLOW}3. Run 'deploy' command from your project directory:${NC}"
     echo "   cd /path/to/your-project"
-    echo "   ./dockup deploy $SETUP_REMOTE"
+    echo "   ./dockup $SETUP_REMOTE deploy"
     echo ""
 }
 
@@ -356,7 +356,8 @@ cmd_init() {
     # Check for updates
     check_for_updates
     
-    if [ -z "$REMOTE" ]; then echo -e "${RED}Usage: ./dockup init user@host${NC}"; exit 1; fi
+    REMOTE="$1"
+    if [ -z "$REMOTE" ]; then echo -e "${RED}Usage: ./dockup user@host init${NC}"; exit 1; fi
 
     print_version
     echo ""
@@ -365,7 +366,7 @@ cmd_init() {
     if ! git rev-parse --show-toplevel > /dev/null 2>&1; then
         echo -e "${RED}❌ Error: Not a Git repository${NC}"
         echo -e "${YELLOW}The 'init' command must be run from inside your project's Git repository.${NC}"
-        echo -e "${YELLOW}Example: cd /path/to/your-app && ./dockup init user@vps-ip${NC}"
+        echo -e "${YELLOW}Example: cd /path/to/your-app && ./dockup user@vps-ip init${NC}"
         exit 1
     fi
 
@@ -394,7 +395,7 @@ cmd_init() {
         echo -e "${RED}❌ GitHub App not configured${NC}"
         echo ""
         echo -e "${YELLOW}Please configure GitHub App credentials first:${NC}"
-        echo "  dockup configure-github-app $REMOTE"
+        echo "  dockup $REMOTE configure-github-app"
         echo ""
         echo -e "${YELLOW}See GITHUB_APP_SETUP.md for detailed instructions.${NC}"
         exit 1
@@ -421,7 +422,7 @@ cmd_init() {
           echo 'ERROR: Failed to clone repository.'
           echo ''
           echo 'Make sure:'
-          echo '  1. GitHub App is configured: dockup configure-github-app $REMOTE'
+          echo '  1. GitHub App is configured: dockup $REMOTE configure-github-app'
           echo '  2. GitHub App is installed on the repository'
           REPO_NAME=\$(echo \"$REPO_URL\" | sed 's|.*github.com[:/]||' | sed 's|\\.git\$||' | sed 's|/\$||')
           echo \"     Go to: https://github.com/\$REPO_NAME/settings/installations\"
@@ -614,11 +615,12 @@ cmd_deploy() {
     # Check for updates
     check_for_updates
     
-    # First argument is the rebuild flag (--rebuild or empty)
-    REBUILD_FLAG="$1"
+    # First argument is REMOTE, second is the rebuild flag (--rebuild or empty)
+    REMOTE="$1"
+    REBUILD_FLAG="$2"
     
     if [ -z "$REMOTE" ]; then 
-        echo -e "${RED}Usage: ./dockup deploy user@host [--rebuild]${NC}"
+        echo -e "${RED}Usage: ./dockup user@host deploy [--rebuild]${NC}"
         echo ""
         echo "This command will:"
         echo "  1. Check if DockUp is installed on VPS (setup if needed)"
@@ -677,7 +679,7 @@ cmd_deploy() {
         
         if [ "$GITHUB_APP_CONFIGURED" != "yes" ]; then
             echo -e "${RED}   ❌ GitHub App not configured${NC}"
-            echo -e "${YELLOW}   Please run: dockup configure-github-app $REMOTE${NC}"
+            echo -e "${YELLOW}   Please run: dockup $REMOTE configure-github-app${NC}"
             exit 1
         fi
         
@@ -705,7 +707,7 @@ cmd_deploy() {
               echo 'ERROR: Failed to clone repository.'
               echo ''
               echo 'Make sure:'
-              echo '  1. GitHub App is configured: dockup configure-github-app $REMOTE'
+              echo '  1. GitHub App is configured: dockup $REMOTE configure-github-app'
               echo '  2. GitHub App is installed on the repository'
               REPO_NAME=\$(echo \"$REPO_URL\" | sed 's|.*github.com[:/]||' | sed 's|\\.git\$||' | sed 's|/\$||')
               echo \"     Go to: https://github.com/\$REPO_NAME/settings/installations\"
@@ -925,8 +927,11 @@ cmd_disconnect() {
     # Check for updates
     check_for_updates
     
+    REMOTE="$1"
+    APP_NAME_ARG="$2"
+    
     if [ -z "$REMOTE" ]; then 
-        echo -e "${RED}Usage: ./dockup disconnect user@host [app-name]${NC}"
+        echo -e "${RED}Usage: ./dockup user@host disconnect [app-name]${NC}"
         echo ""
         echo "This command will:"
         echo "  1. Remove GitHub webhook (if possible)"
@@ -936,13 +941,13 @@ cmd_disconnect() {
     fi
 
     # Detect app name from git context or use provided argument
-    if [ -n "$1" ]; then
-        APP_NAME="$1"
+    if [ -n "$APP_NAME_ARG" ]; then
+        APP_NAME="$APP_NAME_ARG"
     elif git rev-parse --show-toplevel > /dev/null 2>&1; then
         APP_NAME=$(basename `git rev-parse --show-toplevel`)
     else
         echo -e "${RED}❌ Error: Not a Git repository and no app name provided${NC}"
-        echo -e "${YELLOW}Usage: dockup disconnect user@host [app-name]${NC}"
+        echo -e "${YELLOW}Usage: dockup user@host disconnect [app-name]${NC}"
         echo -e "${YELLOW}Or run from inside your project's Git repository${NC}"
         exit 1
     fi
@@ -1017,7 +1022,7 @@ cmd_disconnect() {
 
     echo -e "${GREEN}✅ Disconnected '$APP_NAME' from DockUp${NC}"
     echo -e "${YELLOW}ℹ️  App directory and containers are still running${NC}"
-    echo -e "${YELLOW}   Use 'dockup remove' to completely delete the app${NC}"
+    echo -e "${YELLOW}   Use 'dockup $REMOTE remove' to completely delete the app${NC}"
     echo ""
 }
 
@@ -1028,6 +1033,10 @@ cmd_configure_github_app() {
     
     # Hardcoded App ID for DockUp
     APP_ID="2330335"
+    
+    # First argument is REMOTE, rest are options
+    REMOTE="$1"
+    shift
     
     # Parse arguments - $@ contains remaining args after REMOTE
     INSTALLATION_ID=""
@@ -1052,7 +1061,7 @@ cmd_configure_github_app() {
     done
 
     if [ -z "$REMOTE" ]; then 
-        echo -e "${RED}Usage: ./dockup configure-github-app user@host [--installation-id ID] [--private-key KEY]${NC}"
+        echo -e "${RED}Usage: ./dockup user@host configure-github-app [--installation-id ID] [--private-key KEY]${NC}"
         echo ""
         echo "This command configures the DockUp GitHub App on your VPS."
         echo ""
@@ -1067,8 +1076,8 @@ cmd_configure_github_app() {
         echo "  --private-key KEY    Private key path (optional, uses default if not provided)"
         echo ""
         echo "Example:"
-        echo "  dockup configure-github-app user@vps-ip"
-        echo "  dockup configure-github-app user@vps-ip --installation-id 95887454"
+        echo "  dockup user@vps-ip configure-github-app"
+        echo "  dockup user@vps-ip configure-github-app --installation-id 95887454"
         exit 1
     fi
 
@@ -1260,7 +1269,7 @@ JSONEOF
         echo ""
         echo "  2. Deploy your first repository:"
         echo "     cd your-project"
-        echo "     dockup deploy $REMOTE"
+        echo "     dockup $REMOTE deploy"
         echo ""
     else
         echo -e "${RED}❌ Failed to verify configuration${NC}"
@@ -1274,8 +1283,11 @@ cmd_remove() {
     # Check for updates
     check_for_updates
     
+    REMOTE="$1"
+    APP_NAME_ARG="$2"
+    
     if [ -z "$REMOTE" ]; then 
-        echo -e "${RED}Usage: ./dockup remove user@host [app-name]${NC}"
+        echo -e "${RED}Usage: ./dockup user@host remove [app-name]${NC}"
         echo ""
         echo "This command will:"
         echo "  1. Stop and remove containers"
@@ -1286,13 +1298,13 @@ cmd_remove() {
     fi
 
     # Detect app name from git context or use provided argument
-    if [ -n "$1" ]; then
-        APP_NAME="$1"
+    if [ -n "$APP_NAME_ARG" ]; then
+        APP_NAME="$APP_NAME_ARG"
     elif git rev-parse --show-toplevel > /dev/null 2>&1; then
         APP_NAME=$(basename `git rev-parse --show-toplevel`)
     else
         echo -e "${RED}❌ Error: Not a Git repository and no app name provided${NC}"
-        echo -e "${YELLOW}Usage: dockup remove user@host [app-name]${NC}"
+        echo -e "${YELLOW}Usage: dockup user@host remove [app-name]${NC}"
         echo -e "${YELLOW}Or run from inside your project's Git repository${NC}"
         exit 1
     fi
@@ -1410,51 +1422,149 @@ cmd_remove() {
     echo ""
 }
 
+# --- Command: LIST (List registered apps) ---
+cmd_list() {
+    # Check for updates
+    check_for_updates
+    
+    REMOTE="$1"
+    
+    if [ -z "$REMOTE" ]; then 
+        echo -e "${RED}Usage: ./dockup user@host list${NC}"
+        exit 1
+    fi
+
+    print_version
+    echo ""
+    echo -e "${GREEN}📋 Registered Apps on $REMOTE${NC}"
+    echo ""
+
+    # Check if registry.json exists
+    if ! ssh $REMOTE "test -f /etc/dockup/registry.json" 2>/dev/null; then
+        echo -e "${YELLOW}⚠️  Registry file not found${NC}"
+        echo -e "${YELLOW}   DockUp may not be set up on this VPS${NC}"
+        echo -e "${YELLOW}   Run: dockup $REMOTE setup${NC}"
+        exit 1
+    fi
+
+    # Get registry contents
+    REGISTRY_JSON=$(ssh $REMOTE "cat /etc/dockup/registry.json 2>/dev/null" || echo "{}")
+    
+    # Check if registry is empty
+    APP_COUNT=$(echo "$REGISTRY_JSON" | jq 'length' 2>/dev/null || echo "0")
+    
+    if [ "$APP_COUNT" = "0" ] || [ -z "$APP_COUNT" ]; then
+        echo -e "${YELLOW}No apps registered${NC}"
+        echo ""
+        echo -e "${BLUE}To register an app:${NC}"
+        echo "  cd your-project"
+        echo "  dockup $REMOTE deploy"
+        echo ""
+        exit 0
+    fi
+
+    # List all apps with details
+    echo -e "${BLUE}Found $APP_COUNT registered app(s):${NC}"
+    echo ""
+    
+    # Use jq to format the output nicely
+    ssh $REMOTE "jq -r 'to_entries[] | \"\(.key)\" + \"|\" + (.value | \"\(.path)|\(.branch)|\(.compose_file // \"docker-compose.yml\")\")' /etc/dockup/registry.json" 2>/dev/null | while IFS='|' read -r APP_NAME APP_PATH APP_BRANCH APP_COMPOSE; do
+        echo -e "${GREEN}📦 $APP_NAME${NC}"
+        echo -e "   ${BLUE}Path:${NC}        $APP_PATH"
+        echo -e "   ${BLUE}Branch:${NC}      $APP_BRANCH"
+        echo -e "   ${BLUE}Compose File:${NC} $APP_COMPOSE"
+        
+        # Check if directory exists
+        if ssh $REMOTE "test -d \"$APP_PATH\"" 2>/dev/null; then
+            echo -e "   ${GREEN}Status:${NC}      Directory exists"
+        else
+            echo -e "   ${YELLOW}Status:${NC}      Directory not found"
+        fi
+        
+        # Check if docker-compose is running
+        if ssh $REMOTE "cd \"$APP_PATH\" && docker compose -f \"$APP_COMPOSE\" ps --format json 2>/dev/null | jq -e '. | length > 0' > /dev/null 2>&1" 2>/dev/null; then
+            CONTAINER_COUNT=$(ssh $REMOTE "cd \"$APP_PATH\" && docker compose -f \"$APP_COMPOSE\" ps --format json 2>/dev/null | jq 'length'" 2>/dev/null || echo "0")
+            echo -e "   ${GREEN}Containers:${NC}  $CONTAINER_COUNT running"
+        else
+            echo -e "   ${YELLOW}Containers:${NC}  Not running"
+        fi
+        echo ""
+    done
+}
+
 # --- Main Switch ---
-case "$1" in
-    setup)      REMOTE=$2; cmd_setup ;;
-    init)       REMOTE=$2; cmd_init ;;
-    deploy)     REMOTE=$2; cmd_deploy "$3" ;;
-    disconnect) REMOTE=$2; cmd_disconnect "$3" ;;
-    remove)     REMOTE=$2; cmd_remove "$3" ;;
-    configure-github-app) REMOTE=$2; shift; shift; cmd_configure_github_app "$@" ;;
-    version|--version|-v) cmd_version; exit 0 ;;
-    *)          echo "Usage: dockup {setup|init|deploy|disconnect|remove|configure-github-app|version} user@host [options]"
+# New argument order: dockup user@host command [options]
+# Handle version command first (doesn't need remote)
+if [ "$1" = "version" ] || [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
+    cmd_version
+    exit 0
+fi
+
+REMOTE="$1"
+COMMAND="$2"
+
+case "$COMMAND" in
+    setup)      shift; shift; cmd_setup "$REMOTE" ;;
+    init)       shift; shift; cmd_init "$REMOTE" ;;
+    deploy)      shift; shift; cmd_deploy "$REMOTE" "$@" ;;
+    disconnect) shift; shift; cmd_disconnect "$REMOTE" "$@" ;;
+    remove)     shift; shift; cmd_remove "$REMOTE" "$@" ;;
+    list)       shift; shift; cmd_list "$REMOTE" ;;
+    configure-github-app) shift; shift; cmd_configure_github_app "$REMOTE" "$@" ;;
+    *)
+        # Handle old format for backward compatibility (if first arg looks like a command)
+        if [ "$1" = "setup" ] || [ "$1" = "init" ] || [ "$1" = "deploy" ] || [ "$1" = "disconnect" ] || [ "$1" = "remove" ] || [ "$1" = "configure-github-app" ] || [ "$1" = "list" ]; then
+            echo -e "${YELLOW}⚠️  Deprecated argument order detected${NC}"
+            echo -e "${YELLOW}   Old format: dockup $1 user@host${NC}"
+            echo -e "${YELLOW}   New format: dockup user@host $1${NC}"
+            echo ""
+            echo -e "${BLUE}Please use the new format: dockup user@host $1${NC}"
+            exit 1
+        fi
+        
+        # Show help
+        if [ -z "$1" ] || [ "$1" = "help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+            echo "Usage: dockup user@host {setup|init|deploy|disconnect|remove|list|configure-github-app|version} [options]"
                 echo ""
                 echo "Commands:"
                 echo ""
                 echo -e "${GREEN}  deploy${NC}     - Unified command (RECOMMENDED)"
                 echo "     Automatically handles: setup + init + deploy"
                 echo "     Use when: You want to deploy your app in one command"
-                echo "     Example: dockup deploy user@vps-ip"
-                echo "              dockup deploy user@vps-ip --rebuild"
+                echo "     Example: dockup user@vps-ip deploy"
+                echo "              dockup user@vps-ip deploy --rebuild"
                 echo ""
                 echo -e "${YELLOW}  setup${NC}      - One-time VPS setup"
                 echo "     Installs DockUp agent on your VPS"
                 echo "     Use when: First time setting up a new VPS"
-                echo "     Example: dockup setup user@vps-ip"
+                echo "     Example: dockup user@vps-ip setup"
                 echo ""
                 echo -e "${YELLOW}  init${NC}       - Register repository"
                 echo "     Registers your repo with DockUp (without deploying)"
                 echo "     Use when: You only want to register, not deploy immediately"
-                echo "     Example: dockup init user@vps-ip"
+                echo "     Example: dockup user@vps-ip init"
+                echo ""
+                echo -e "${BLUE}  list${NC}        - List registered apps"
+                echo "     Shows all apps registered in DockUp registry"
+                echo "     Use when: You want to see what apps are deployed"
+                echo "     Example: dockup user@vps-ip list"
                 echo ""
                 echo -e "${BLUE}  disconnect${NC}  - Unlink project from DockUp"
                 echo "     Removes webhook and registry entry, keeps app directory"
                 echo "     Use when: You want to stop auto-deployments but keep the app"
-                echo "     Example: dockup disconnect user@vps-ip"
-                echo "              dockup disconnect user@vps-ip my-app"
+                echo "     Example: dockup user@vps-ip disconnect"
+                echo "              dockup user@vps-ip disconnect my-app"
                 echo ""
                 echo -e "${RED}  remove${NC}      - Delete project completely"
                 echo "     Stops containers, removes webhook, deletes app directory"
                 echo "     Use when: You want to completely remove the app from VPS"
-                echo "     Example: dockup remove user@vps-ip"
-                echo "              dockup remove user@vps-ip my-app"
+                echo "     Example: dockup user@vps-ip remove"
+                echo "              dockup user@vps-ip remove my-app"
                 echo ""
                 echo -e "${BLUE}  configure-github-app${NC}  - Configure GitHub App credentials"
                 echo "     Configures GitHub App for repository access"
                 echo "     Use when: First time setup or updating credentials"
-                echo "     Example: dockup configure-github-app user@vps-ip"
+                echo "     Example: dockup user@vps-ip configure-github-app"
                 echo ""
                 echo -e "${BLUE}💡 Tip: Most users should use 'deploy' - it does everything!${NC}"
                 ;;
