@@ -261,6 +261,9 @@ cmd_init() {
 
 # --- Command: DEPLOY (Unified - Setup + Init + Deploy) ---
 cmd_deploy() {
+    # First argument is the rebuild flag (--rebuild or empty)
+    REBUILD_FLAG="$1"
+    
     if [ -z "$REMOTE" ]; then 
         echo -e "${RED}Usage: ./dockup deploy user@host [--rebuild]${NC}"
         echo ""
@@ -289,7 +292,6 @@ cmd_deploy() {
     fi
 
     BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    REBUILD_FLAG="$3"  # Check for --rebuild flag
 
     echo -e "${GREEN}🚀 Deploying '$APP_NAME' to $REMOTE...${NC}"
     echo ""
@@ -361,8 +363,10 @@ cmd_deploy() {
         -H "Authorization: Bearer $SECRET" \
         "http://${VPS_IP}:8080/webhook/manual?app=${APP_NAME}" 2>/dev/null)
     
+    # Extract HTTP code (last line) and response body (all but last line)
+    # Use sed for portability (head -n-1 doesn't work on macOS)
     HTTP_CODE=$(echo "$DEPLOY_RESPONSE" | tail -n1)
-    RESPONSE_BODY=$(echo "$DEPLOY_RESPONSE" | head -n-1)
+    RESPONSE_BODY=$(echo "$DEPLOY_RESPONSE" | sed '$d')
     
     if [ "$HTTP_CODE" = "200" ]; then
         echo -e "${GREEN}   ✓ Deployment triggered successfully${NC}"
@@ -414,17 +418,28 @@ cmd_deploy() {
 case "$1" in
     setup)  REMOTE=$2; cmd_setup ;;
     init)   REMOTE=$2; cmd_init ;;
-    deploy) REMOTE=$2; cmd_deploy ;;
-    *)      echo "Usage: ./dockup {setup|init|deploy} user@host [options]"
+    deploy) REMOTE=$2; cmd_deploy "$3" ;;
+    *)      echo "Usage: dockup {setup|init|deploy} user@host [options]"
             echo ""
             echo "Commands:"
-            echo "  setup   - One-time VPS setup (installs DockUp)"
-            echo "  init    - Register repository on VPS"
-            echo "  deploy  - Unified command: setup + init + deploy (recommended)"
             echo ""
-            echo "Examples:"
-            echo "  ./dockup deploy user@vps-ip"
-            echo "  ./dockup deploy user@vps-ip --rebuild"
+            echo -e "${GREEN}  deploy${NC}  - Unified command (RECOMMENDED)"
+            echo "     Automatically handles: setup + init + deploy"
+            echo "     Use when: You want to deploy your app in one command"
+            echo "     Example: dockup deploy user@vps-ip"
+            echo "              dockup deploy user@vps-ip --rebuild"
+            echo ""
+            echo -e "${YELLOW}  setup${NC}   - One-time VPS setup"
+            echo "     Installs DockUp agent on your VPS"
+            echo "     Use when: First time setting up a new VPS"
+            echo "     Example: dockup setup user@vps-ip"
+            echo ""
+            echo -e "${YELLOW}  init${NC}    - Register repository"
+            echo "     Registers your repo with DockUp (without deploying)"
+            echo "     Use when: You only want to register, not deploy immediately"
+            echo "     Example: dockup init user@vps-ip"
+            echo ""
+            echo -e "${BLUE}💡 Tip: Most users should use 'deploy' - it does everything!${NC}"
             ;;
 esac
 

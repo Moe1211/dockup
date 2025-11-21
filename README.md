@@ -57,6 +57,31 @@ curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | ba
 
 #### Option 3: Manual Installation
 
+## Command Reference
+
+### When to Use Which Command
+
+**`dockup deploy` (Recommended)**
+- **Use when:** You want to deploy your app in one command
+- **What it does:** 
+  - Checks if DockUp is installed (sets up if needed)
+  - Registers your repository (if not already registered)
+  - Triggers immediate build and deploy
+- **Example:** `dockup deploy user@vps-ip`
+- **With rebuild:** `dockup deploy user@vps-ip --rebuild`
+
+**`dockup setup`**
+- **Use when:** First time setting up a new VPS
+- **What it does:** Installs DockUp agent, Docker, and dependencies on your VPS
+- **Example:** `dockup setup user@vps-ip`
+- **Note:** Usually not needed - `deploy` handles this automatically
+
+**`dockup init`**
+- **Use when:** You only want to register a repository without deploying
+- **What it does:** Clones repo and registers it with DockUp
+- **Example:** `dockup init user@vps-ip`
+- **Note:** Usually not needed - `deploy` handles this automatically
+
 ### 1. Initial VPS Setup (One-time per server)
 
 ```bash
