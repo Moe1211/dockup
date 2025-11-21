@@ -453,13 +453,16 @@ cmd_deploy() {
             if [ -f /etc/dockup/github-app.json ]; then
               # Wait a moment for agent to be ready, then try to get token URL
               sleep 2
-              TOKEN_URL=\$(curl -s -m 5 \"http://localhost:8080/github/token-url?repo=$REPO_URL\" 2>/dev/null || echo \"\")
-              if [ -n \"\$TOKEN_URL\" ] && [ \"\${TOKEN_URL:0:5}\" != \"Failed\" ] && [ \"\${TOKEN_URL:0:4}\" = \"http\" ]; then
+              # URL encode the repo URL for the query parameter
+              ENCODED_REPO=\$(echo \"$REPO_URL\" | sed 's|#|%23|g' | sed 's|&|%26|g')
+              TOKEN_URL=\$(curl -s -m 5 \"http://localhost:8080/github/token-url?repo=\$ENCODED_REPO\" 2>/dev/null)
+              # Check if we got a valid URL (starts with http and doesn't contain error messages)
+              if [ -n \"\$TOKEN_URL\" ] && [ \"\${TOKEN_URL:0:4}\" = \"http\" ] && [ \"\${TOKEN_URL:0:5}\" != \"Failed\" ] && echo \"\$TOKEN_URL\" | grep -q 'github.com' 2>/dev/null; then
                 CLONE_URL=\"\$TOKEN_URL\"
                 echo '   >> Using GitHub App token for cloning...'
               else
-                echo '   >> Warning: Could not get token from agent, trying direct clone...'
-                echo '   >> Make sure agent is running: systemctl status dockup'
+                echo '   >> Warning: Could not get token from agent (status: '\$(systemctl is-active dockup 2>/dev/null || echo unknown)')'
+                echo '   >> Trying direct clone (this may fail if GitHub App is required)...'
               fi
             fi
             if ! git clone \"\$CLONE_URL\" /opt/dockup/apps/$APP_NAME 2>&1; then
@@ -468,7 +471,8 @@ cmd_deploy() {
               echo 'Make sure:'
               echo '  1. GitHub App is configured: dockup configure-github-app $REMOTE'
               echo '  2. GitHub App is installed on the repository'
-              echo '     Go to: https://github.com/$(echo \"$REPO_URL\" | sed -E \"s|.*github.com[:/]([^/]+/[^/]+).*|\\1|\" | sed \"s|\\.git$||\")/settings/installations'
+              REPO_NAME=\$(echo \"$REPO_URL\" | sed 's|.*github.com[:/]||' | sed 's|\\.git\$||' | sed 's|/\$||')
+              echo \"     Go to: https://github.com/\$REPO_NAME/settings/installations\"
               echo '  3. The repository URL is correct: $REPO_URL'
               echo '  4. DockUp agent is running: systemctl status dockup'
               echo ''
@@ -878,6 +882,12 @@ JSONEOF
         echo "  App ID: $APP_ID"
         echo "  Installation ID: $INSTALLATION_ID"
         echo "  Location: /etc/dockup/github-app.json"
+        echo ""
+        # Reload agent to pick up new config
+        echo -e "${BLUE}🔄 Reloading DockUp agent to load GitHub App config...${NC}"
+        ssh $REMOTE "curl -s -X POST http://localhost:8080/reload > /dev/null 2>&1 || systemctl restart dockup" || true
+        sleep 2
+        echo -e "${GREEN}✅ Agent reloaded${NC}"
         echo ""
         echo -e "${GREEN}You can now deploy repositories where the GitHub App is installed.${NC}"
         echo ""

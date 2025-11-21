@@ -381,6 +381,14 @@ func handleReload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Also reload GitHub App config
+	loadGitHubAppConfig()
+	if githubAppConfig != nil {
+		log.Printf("✅ GitHub App config reloaded (App ID: %s)", githubAppConfig.AppID)
+	} else {
+		log.Printf("⚠️  GitHub App config not found or invalid")
+	}
+
 	log.Printf("♻️  Registry reloaded, now watching %d apps", len(registry))
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(fmt.Sprintf("Registry reloaded. Now watching %d apps", len(registry))))
