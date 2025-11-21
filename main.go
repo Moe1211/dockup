@@ -256,6 +256,12 @@ func getInstallationToken() (string, error) {
 
 // getGitHubTokenURL converts a GitHub URL to use token authentication
 func getGitHubTokenURL(repoURL string) (string, error) {
+	// Check if URL already has a token embedded
+	if strings.Contains(repoURL, "x-access-token:") && strings.Contains(repoURL, "@github.com") {
+		// URL already has token, return as-is
+		return repoURL, nil
+	}
+
 	token, err := getInstallationToken()
 	if err != nil {
 		return "", err
@@ -264,6 +270,15 @@ func getGitHubTokenURL(repoURL string) (string, error) {
 	// Convert various GitHub URL formats to HTTPS with token
 	// git@github.com:user/repo.git -> https://x-access-token:TOKEN@github.com/user/repo.git
 	// https://github.com/user/repo.git -> https://x-access-token:TOKEN@github.com/user/repo.git
+	
+	// Remove existing token if present (in case of malformed URL)
+	if strings.Contains(repoURL, "@github.com") && !strings.Contains(repoURL, "x-access-token:") {
+		// Extract just the repo path part
+		parts := strings.Split(repoURL, "@github.com")
+		if len(parts) > 1 {
+			repoURL = "https://github.com" + parts[1]
+		}
+	}
 	
 	if strings.HasPrefix(repoURL, "git@github.com:") {
 		repoURL = strings.Replace(repoURL, "git@github.com:", "https://github.com/", 1)
