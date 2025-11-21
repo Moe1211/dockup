@@ -43,18 +43,18 @@ type GitHubAppConfig struct {
 
 // Token cache for installation tokens
 type tokenCache struct {
-	token      string
-	expiresAt  time.Time
-	mu         sync.RWMutex
+	token     string
+	expiresAt time.Time
+	mu        sync.RWMutex
 }
 
 // Global state
 var (
-	registry         map[string]AppConfig
-	registryLock     sync.RWMutex
-	deployLocks      sync.Map // Prevents overlapping deploys for the same app
-	githubAppConfig  *GitHubAppConfig
-	githubAppLock    sync.RWMutex
+	registry          map[string]AppConfig
+	registryLock      sync.RWMutex
+	deployLocks       sync.Map // Prevents overlapping deploys for the same app
+	githubAppConfig   *GitHubAppConfig
+	githubAppLock     sync.RWMutex
 	installationToken tokenCache
 )
 
@@ -91,7 +91,7 @@ func main() {
 		log.Printf("⚠️  GitHub App not configured - repository cloning may fail")
 		log.Printf("   Run: dockup configure-github-app user@vps-ip")
 	}
-	
+
 	// Start server - http.ListenAndServe will fail immediately if port is in use
 	// No separate port check needed as it would create a race condition
 	log.Fatal(http.ListenAndServe(":"+*port, nil))
@@ -182,8 +182,8 @@ func generateJWT() (string, error) {
 	now := time.Now()
 	claims := jwt.MapClaims{
 		"iat": now.Add(-60 * time.Second).Unix(), // Issued at (allow 60s clock skew)
-		"exp": now.Add(10 * time.Minute).Unix(),   // Expires in 10 minutes
-		"iss": appID,                              // Issuer (App ID)
+		"exp": now.Add(10 * time.Minute).Unix(),  // Expires in 10 minutes
+		"iss": appID,                             // Issuer (App ID)
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
@@ -274,12 +274,12 @@ func getGitHubTokenURL(repoURL string) (string, error) {
 	// Convert various GitHub URL formats to HTTPS with token
 	// git@github.com:user/repo.git -> https://x-access-token:TOKEN@github.com/user/repo.git
 	// https://github.com/user/repo.git -> https://x-access-token:TOKEN@github.com/user/repo.git
-	
+
 	// Handle SSH URLs first (before credential cleanup)
 	if strings.HasPrefix(repoURL, "git@github.com:") {
 		repoURL = strings.Replace(repoURL, "git@github.com:", "https://github.com/", 1)
 	}
-	
+
 	// Remove existing credentials if present (for HTTPS URLs with user:pass or other tokens)
 	// This only applies to HTTPS URLs, not SSH (which we already converted above)
 	if strings.HasPrefix(repoURL, "https://") && strings.Contains(repoURL, "@github.com") {
@@ -289,17 +289,17 @@ func getGitHubTokenURL(repoURL string) (string, error) {
 			repoURL = "https://github.com" + parts[1]
 		}
 	}
-	
+
 	// Handle clean HTTPS URLs
 	if strings.HasPrefix(repoURL, "https://github.com/") {
 		// Insert token into URL
-		repoURL = strings.Replace(repoURL, "https://github.com/", 
+		repoURL = strings.Replace(repoURL, "https://github.com/",
 			fmt.Sprintf("https://x-access-token:%s@github.com/", token), 1)
 		return repoURL, nil
 	}
-	
+
 	if strings.HasPrefix(repoURL, "http://github.com/") {
-		repoURL = strings.Replace(repoURL, "http://github.com/", 
+		repoURL = strings.Replace(repoURL, "http://github.com/",
 			fmt.Sprintf("https://x-access-token:%s@github.com/", token), 1)
 		return repoURL, nil
 	}
@@ -404,7 +404,7 @@ func handleReload(w http.ResponseWriter, r *http.Request) {
 	// Simple auth - check for a reload token or allow from localhost
 	// For security, we'll require a simple token or localhost
 	configFile := "/etc/dockup/registry.json" // Default, could be made configurable
-	
+
 	if err := loadConfig(configFile); err != nil {
 		log.Printf("❌ Failed to reload config: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to reload: %v", err), 500)
@@ -413,7 +413,7 @@ func handleReload(w http.ResponseWriter, r *http.Request) {
 
 	// Also reload GitHub App config
 	loadGitHubAppConfig()
-	
+
 	// Safely read githubAppConfig with proper locking
 	githubAppLock.RLock()
 	appID := ""
@@ -421,7 +421,7 @@ func handleReload(w http.ResponseWriter, r *http.Request) {
 		appID = githubAppConfig.AppID
 	}
 	githubAppLock.RUnlock()
-	
+
 	if appID != "" {
 		log.Printf("✅ GitHub App config reloaded (App ID: %s)", appID)
 	} else {
@@ -500,7 +500,7 @@ func handleCreateWebhook(w http.ResponseWriter, r *http.Request) {
 
 	// Create webhook via GitHub API
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/hooks", req.Repo)
-	
+
 	webhookConfig := map[string]interface{}{
 		"url":          req.URL,
 		"content_type": "json",
@@ -630,7 +630,7 @@ func runDeploy(appName string, config AppConfig) {
 
 	// Get repository URL and convert to token-authenticated URL
 	var gitCommands []string
-	
+
 	// Get the remote URL from git config
 	getRemoteCmd := exec.Command("git", "config", "--get", "remote.origin.url")
 	getRemoteCmd.Dir = config.Path

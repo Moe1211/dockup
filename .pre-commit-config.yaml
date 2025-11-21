@@ -1,0 +1,82 @@
+# Pre-commit hooks for DockUp
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'  # Allow trailing whitespace in markdown (for line breaks)
+      - id: end-of-file-fixer
+        exclude: '\.sh$'  # Shell scripts may need no newline at end
+      - id: check-yaml
+        args: ['--unsafe']  # Allow custom YAML tags
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+      - id: detect-private-key
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.6
+    hooks:
+      - id: shellcheck
+        args: ['-S', 'warning']
+        exclude: '^install\.sh$|^install-global\.sh$'  # Exclude installers that need to work standalone
+
+  # Go formatting and linting
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+      - id: go-vet
+      - id: go-mod-tidy
+      - id: go-imports
+        args: ['-w']
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.38.0
+    hooks:
+      - id: markdownlint
+        args: ['--fix']
+        exclude: '^index\.html$'  # Exclude HTML file
+
+  # Custom hooks (defined in .pre-commit-hooks.yaml)
+  - repo: local
+    hooks:
+      - id: go-test
+        name: Run Go tests
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && go test ./... -v'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [commit]
+
+      - id: shell-syntax-check
+        name: Check shell script syntax
+        entry: bash -c 'for file in "$@"; do bash -n "$file" 2>&1 || exit 1; done'
+        language: system
+        types: [shell]
+        pass_filenames: true
+
+      - id: check-dockup-version
+        name: Check DockUp version consistency
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && ./scripts/check-version.sh'
+        language: system
+        pass_filenames: false
+        stages: [commit]
+
+      - id: validate-json
+        name: Validate JSON files
+        entry: bash -c 'for file in "$@"; do jq empty "$file" 2>&1 || exit 1; done'
+        language: system
+        types: [json]
+        pass_filenames: true
+

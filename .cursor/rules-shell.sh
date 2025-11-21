@@ -1,0 +1,59 @@
+# Shell Script Rules for DockUp
+
+## General Guidelines
+- Use `#!/bin/bash` shebang for all bash scripts
+- Always use `set -e` to exit on error
+- Use `set -u` or check for undefined variables when appropriate
+- Use meaningful variable names in UPPER_CASE for constants
+- Use local variables with `local` keyword in functions
+
+## Code Style
+- Use 2-space indentation (not tabs)
+- Use double quotes for variables: `"$VAR"` not `$VAR`
+- Use `[[ ]]` for conditionals instead of `[ ]`
+- Use `$(command)` instead of backticks
+- Quote all variables to prevent word splitting
+
+## Error Handling
+- Always check command exit codes
+- Provide clear error messages with context
+- Use `|| { echo "Error message"; exit 1; }` for critical failures
+- Log errors with appropriate prefixes (❌, ⚠️, etc.)
+
+## Functions
+- Define functions before use
+- Use descriptive function names: `cmd_setup()` not `setup()`
+- Document function purpose with comments
+- Return early on errors
+
+## SSH Commands
+- Always quote SSH commands properly
+- Use heredoc for multi-line SSH commands
+- Check SSH connection before running commands
+- Provide fallback options when SSH fails
+
+## Color Output
+- Use consistent color codes:
+  - GREEN='\033[0;32m'
+  - YELLOW='\033[1;33m'
+  - RED='\033[0;31m'
+  - BLUE='\033[0;34m'
+  - NC='\033[0m' (no color)
+- Always reset color with `${NC}`
+
+## Best Practices
+- Validate user input before use
+- Check prerequisites before operations
+- Provide helpful error messages with next steps
+- Use `jq` for JSON manipulation
+- Use `mktemp` for temporary files
+- Clean up temporary files with trap or explicit removal
+
+## DockUp-Specific
+- Always check if DockUp is installed before operations
+- Verify GitHub App configuration when needed
+- Check if app is registered before operations
+- Use `systemctl` commands for agent management
+- Use `/etc/dockup/registry.json` for app registry
+- Use `/opt/dockup/apps/` for app directories
+

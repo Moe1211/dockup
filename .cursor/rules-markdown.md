@@ -1,0 +1,105 @@
+# Markdown Documentation Rules for DockUp
+
+## General Guidelines
+- Use clear, descriptive headings
+- Use proper heading hierarchy (h1 → h2 → h3)
+- Write in clear, concise language
+- Use code blocks for all code examples
+- Include examples for complex concepts
+
+## Structure
+- Start with a clear title (h1)
+- Include a brief description/introduction
+- Use consistent section organization
+- Include a table of contents for long documents
+- End with related links or next steps
+
+## Code Blocks
+- Always specify language for syntax highlighting
+- Use triple backticks with language identifier
+- Include complete, runnable examples
+- Add comments to explain complex code
+- Show both input and expected output
+
+Example:
+```bash
+dockup deploy user@vps-ip
+```
+
+## Lists
+- Use ordered lists for step-by-step instructions
+- Use unordered lists for feature lists
+- Use nested lists for sub-items
+- Keep list items concise
+- Use consistent bullet style
+
+## Links
+- Use descriptive link text
+- Link to related documents
+- Use relative paths for internal links
+- Use absolute URLs for external links
+- Verify all links work
+
+## Formatting
+- Use **bold** for emphasis
+- Use `code` for inline code
+- Use *italic* sparingly
+- Use > blockquotes for important notes
+- Use horizontal rules (---) to separate sections
+
+## DockUp Documentation Standards
+
+### README.md
+- Clear project description
+- Quick start guide
+- Feature list
+- Installation instructions
+- Usage examples
+- Troubleshooting links
+
+### Setup Guides (GITHUB_APP_SETUP.md, etc.)
+- Prerequisites section
+- Step-by-step instructions
+- Screenshots or examples where helpful
+- Troubleshooting section
+- Related links
+
+### Roadmap (ROADMAP.md)
+- Current features (✅)
+- Upcoming phases
+- Task lists with checkboxes
+- Contribution guidelines
+- Timeline estimates
+
+### Feature Lists (FEATURES.md)
+- Organized by category
+- Clear feature descriptions
+- Status indicators (✅, ⏳)
+- Statistics and metrics
+
+## Best Practices
+- Keep paragraphs short (3-4 sentences)
+- Use headings to break up content
+- Include practical examples
+- Add diagrams for complex concepts
+- Keep documentation up to date
+- Review and update regularly
+
+## Style Guide
+- Use active voice
+- Write for the user's perspective
+- Avoid jargon when possible
+- Define acronyms on first use
+- Use consistent terminology
+- Be friendly but professional
+
+## Checklist
+Before committing documentation:
+- [ ] All code examples are tested
+- [ ] All links work
+- [ ] Headings are properly nested
+- [ ] Code blocks have syntax highlighting
+- [ ] Spelling and grammar checked
+- [ ] Formatting is consistent
+- [ ] Examples are relevant and clear
+
