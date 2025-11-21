@@ -2,12 +2,21 @@
 
 This guide will walk you through creating and configuring a GitHub App for DockUp. GitHub Apps provide a more secure and scalable way to authenticate with GitHub repositories compared to SSH deploy keys.
 
+## Important: Each User Creates Their Own GitHub App
+
+**You do NOT share your GitHub App private key with anyone.** Each DockUp user creates their own GitHub App:
+- Your GitHub App is private to you
+- Your private key stays on your VPS only
+- Other users create their own GitHub Apps for their repositories
+- This is more secure than sharing deploy keys
+
 ## Why GitHub Apps?
 
 - **No per-repository setup**: Install once on an organization or account, works for all repos
 - **Better permissions**: Fine-grained control over what the app can access
 - **More secure**: Tokens are short-lived and automatically rotated
 - **Recommended by GitHub**: The modern way to integrate with GitHub
+- **Private to you**: Each user has their own app - no sharing required
 
 ## Prerequisites
 

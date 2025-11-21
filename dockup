@@ -98,7 +98,25 @@ cmd_setup() {
 
     echo -e "${GREEN}🔨 Building Agent for Linux...${NC}"
     if [ -f "$AGENT_SRC" ]; then
-        env GOOS=linux GOARCH=amd64 go build -o $BINARY_NAME "$AGENT_SRC"
+        # Build in the directory containing main.go to ensure go.mod is found
+        AGENT_DIR=$(dirname "$AGENT_SRC")
+        AGENT_FILE=$(basename "$AGENT_SRC")
+        if [ -f "$AGENT_DIR/go.mod" ]; then
+            # Build from the directory containing go.mod
+            (cd "$AGENT_DIR" && env GOOS=linux GOARCH=amd64 go build -o "$(pwd)/$BINARY_NAME" "$AGENT_FILE")
+            # Move binary to current directory if built elsewhere
+            if [ -f "$AGENT_DIR/$BINARY_NAME" ] && [ "$AGENT_DIR" != "." ]; then
+                mv "$AGENT_DIR/$BINARY_NAME" "./$BINARY_NAME"
+            fi
+        else
+            # Fallback: build from current directory if go.mod is here
+            if [ -f "./go.mod" ]; then
+                env GOOS=linux GOARCH=amd64 go build -o $BINARY_NAME "$AGENT_SRC"
+            else
+                echo -e "${YELLOW}⚠️  go.mod not found, building without module support...${NC}"
+                env GOOS=linux GOARCH=amd64 go build -o $BINARY_NAME "$AGENT_SRC"
+            fi
+        fi
     elif [ ! -f "$BINARY_NAME" ]; then
         echo -e "${RED}Error: Could not find main.go${NC}"
         echo -e "${YELLOW}Tried:${NC}"
@@ -188,10 +206,15 @@ cmd_init() {
         # Try to get token URL from agent, fallback to direct URL
         CLONE_URL=\"$REPO_URL\"
         if [ -f /etc/dockup/github-app.json ]; then
-          # Try to get token URL from agent (if running)
-          TOKEN_URL=\$(curl -s \"http://localhost:8080/github/token-url?repo=$REPO_URL\" 2>/dev/null || echo \"\")
-          if [ -n \"\$TOKEN_URL\" ] && [ \"\${TOKEN_URL:0:5}\" != \"Failed\" ]; then
+          # Wait a moment for agent to be ready, then try to get token URL
+          sleep 2
+          TOKEN_URL=\$(curl -s -m 5 \"http://localhost:8080/github/token-url?repo=$REPO_URL\" 2>/dev/null || echo \"\")
+          if [ -n \"\$TOKEN_URL\" ] && [ \"\${TOKEN_URL:0:5}\" != \"Failed\" ] && [ \"\${TOKEN_URL:0:4}\" = \"http\" ]; then
             CLONE_URL=\"\$TOKEN_URL\"
+            echo '>> Using GitHub App token for cloning...'
+          else
+            echo '>> Warning: Could not get token from agent, trying direct clone...'
+            echo '>> Make sure agent is running: systemctl status dockup'
           fi
         fi
         if ! git clone \"\$CLONE_URL\" /opt/dockup/apps/$APP_NAME 2>&1; then
@@ -200,7 +223,8 @@ cmd_init() {
           echo 'Make sure:'
           echo '  1. GitHub App is configured: dockup configure-github-app $REMOTE'
           echo '  2. GitHub App is installed on the repository'
-          echo '     Go to: https://github.com/$(echo \"$REPO_URL\" | sed -E \"s|.*github.com[:/]([^/]+/[^/]+).*|\\1|\" | sed \"s|\\.git$||\")/settings/installations'
+          REPO_NAME=\$(echo \"$REPO_URL\" | sed 's|.*github.com[:/]||' | sed 's|\\.git\$||' | sed 's|/\$||')
+          echo \"     Go to: https://github.com/\$REPO_NAME/settings/installations\"
           echo '  3. The repository URL is correct: $REPO_URL'
           echo '  4. DockUp agent is running: systemctl status dockup'
           echo ''
@@ -427,10 +451,15 @@ cmd_deploy() {
             # Try to get token URL from agent, fallback to direct URL
             CLONE_URL=\"$REPO_URL\"
             if [ -f /etc/dockup/github-app.json ]; then
-              # Try to get token URL from agent (if running)
-              TOKEN_URL=\$(curl -s \"http://localhost:8080/github/token-url?repo=$REPO_URL\" 2>/dev/null || echo \"\")
-              if [ -n \"\$TOKEN_URL\" ] && [ \"\${TOKEN_URL:0:5}\" != \"Failed\" ]; then
+              # Wait a moment for agent to be ready, then try to get token URL
+              sleep 2
+              TOKEN_URL=\$(curl -s -m 5 \"http://localhost:8080/github/token-url?repo=$REPO_URL\" 2>/dev/null || echo \"\")
+              if [ -n \"\$TOKEN_URL\" ] && [ \"\${TOKEN_URL:0:5}\" != \"Failed\" ] && [ \"\${TOKEN_URL:0:4}\" = \"http\" ]; then
                 CLONE_URL=\"\$TOKEN_URL\"
+                echo '   >> Using GitHub App token for cloning...'
+              else
+                echo '   >> Warning: Could not get token from agent, trying direct clone...'
+                echo '   >> Make sure agent is running: systemctl status dockup'
               fi
             fi
             if ! git clone \"\$CLONE_URL\" /opt/dockup/apps/$APP_NAME 2>&1; then

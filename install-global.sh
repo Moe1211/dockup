@@ -58,6 +58,12 @@ if ! curl -fsSL "$MAIN_GO_URL" -o main.go; then
     exit 1
 fi
 
+# Download go.mod (required for building)
+GO_MOD_URL="${GO_MOD_URL:-$DOCKUP_REPO_URL/go.mod}"
+if ! curl -fsSL "$GO_MOD_URL" -o go.mod; then
+    echo -e "${YELLOW}⚠️  Failed to download go.mod (may cause build issues)${NC}"
+fi
+
 # Make dockup executable
 chmod +x dockup
 
@@ -70,9 +76,12 @@ rm dockup.bak
 echo -e "${BLUE}📥 Installing to $INSTALL_DIR...${NC}"
 cp dockup "$INSTALL_DIR/dockup"
 
-# Install main.go
+# Install main.go and go.mod
 echo -e "${BLUE}📥 Installing main.go to $DATA_DIR...${NC}"
 cp main.go "$DATA_DIR/main.go"
+if [ -f go.mod ]; then
+    cp go.mod "$DATA_DIR/go.mod"
+fi
 
 # Add to PATH if not already there (for user installs)
 if [ "$EUID" -ne 0 ]; then
