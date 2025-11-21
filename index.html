@@ -4,7 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DockUp - Zero-Bloat PaaS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --secondary: #8b5cf6;
+            --accent: #ec4899;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --border: #334155;
+            --shadow: rgba(0, 0, 0, 0.3);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,268 +32,551 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: var(--text-primary);
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 15s ease infinite;
             min-height: 100vh;
-            padding: 20px;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
         }
 
         .container {
-            max-width: 900px;
+            max-width: 1200px;
             margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 0 20px;
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 80px 0 60px;
+            text-align: center;
+            position: relative;
             overflow: hidden;
         }
 
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 800;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--primary-light) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        .hero p {
+            font-size: clamp(1.1rem, 2vw, 1.5rem);
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-demo {
+            margin: 50px auto;
+            max-width: 900px;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            padding: 20px;
+        }
+
+        .hero-demo img {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 8px;
+        }
+
+        .hero-demo-placeholder {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
             color: white;
-            padding: 40px;
-            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 600;
+            position: relative;
+            overflow: hidden;
         }
 
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            font-weight: 700;
+        .hero-demo-placeholder::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);
+            animation: shimmer 3s infinite;
         }
 
-        .header p {
-            font-size: 1.2em;
-            opacity: 0.95;
+        @keyframes shimmer {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
         }
 
-        .content {
-            padding: 40px;
+        /* Card Styles */
+        .card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
         }
 
         .section {
-            margin-bottom: 40px;
+            margin-bottom: 60px;
         }
 
         .section h2 {
-            color: #667eea;
-            font-size: 1.8em;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #e0e0e0;
-            padding-bottom: 10px;
+            font-size: clamp(1.8rem, 3vw, 2.5rem);
+            font-weight: 700;
+            margin-bottom: 30px;
+            color: var(--text-primary);
+            position: relative;
+            padding-bottom: 15px;
+        }
+
+        .section h2::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 60px;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+            border-radius: 2px;
         }
 
         .section h3 {
-            color: #764ba2;
-            font-size: 1.3em;
-            margin: 25px 0 15px 0;
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin: 30px 0 20px 0;
+            color: var(--primary-light);
         }
 
-        .code-block {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            padding: 20px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin: 15px 0;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.95em;
-            line-height: 1.5;
-            position: relative;
-        }
-
-        .code-block code {
-            display: block;
-        }
-
-        .copy-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 0.85em;
-            transition: background 0.3s;
-        }
-
-        .copy-btn:hover {
-            background: #5568d3;
-        }
-
-        .copy-btn.copied {
-            background: #4caf50;
-        }
-
-        .step {
-            background: #f8f9fa;
-            border-left: 4px solid #667eea;
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }
-
-        .step-number {
-            display: inline-block;
-            background: #667eea;
-            color: white;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            text-align: center;
-            line-height: 30px;
-            font-weight: bold;
-            margin-right: 10px;
-        }
-
+        /* Features Grid */
         .features {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin: 30px 0;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin: 40px 0;
         }
 
         .feature {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            border-top: 3px solid #667eea;
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(10px);
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .feature:hover::before {
+            transform: scaleX(1);
+        }
+
+        .feature:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.2);
         }
 
         .feature h4 {
-            color: #667eea;
-            margin-bottom: 10px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--primary-light);
+        }
+
+        .feature p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Code Blocks */
+        .code-block {
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .code-block-header {
+            background: #161b22;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .code-block-title {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .code-block-content {
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .code-block code {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #c9d1d9;
+            display: block;
+            white-space: pre;
+        }
+
+        .copy-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-dark);
+            transform: scale(1.05);
+        }
+
+        .copy-btn.copied {
+            background: var(--success);
+        }
+
+        /* Steps */
+        .step {
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(10px);
+            border-left: 4px solid var(--primary);
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 8px;
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            transition: all 0.3s ease;
+        }
+
+        .step:hover {
+            border-left-width: 6px;
+            padding-left: 23px;
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-weight: 700;
+            margin-right: 15px;
+            font-size: 1rem;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 12px;
+            border-left: 4px solid;
+            backdrop-filter: blur(10px);
         }
 
         .warning {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 4px;
+            background: rgba(245, 158, 11, 0.1);
+            border-color: var(--warning);
+            color: #fbbf24;
         }
 
         .warning strong {
-            color: #856404;
+            color: #f59e0b;
         }
 
         .success {
-            background: #d4edda;
-            border-left: 4px solid #28a745;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 4px;
+            background: rgba(16, 185, 129, 0.1);
+            border-color: var(--success);
+            color: #34d399;
+        }
+
+        .success strong {
+            color: var(--success);
         }
 
         .note {
-            background: #e7f3ff;
-            border-left: 4px solid #2196F3;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 4px;
+            background: rgba(99, 102, 241, 0.1);
+            border-color: var(--primary);
+            color: var(--primary-light);
         }
 
         .note strong {
-            color: #1976D2;
+            color: var(--primary);
         }
 
+        /* Lists */
         ul {
-            margin-left: 20px;
-            margin-top: 10px;
+            margin-left: 25px;
+            margin-top: 15px;
         }
 
         li {
-            margin: 8px 0;
+            margin: 10px 0;
+            color: var(--text-secondary);
+            line-height: 1.8;
         }
 
+        li::marker {
+            color: var(--primary);
+        }
+
+        /* Footer */
         .footer {
             text-align: center;
-            padding: 30px;
-            background: #f8f9fa;
-            color: #666;
-            border-top: 1px solid #e0e0e0;
+            padding: 50px 20px;
+            margin-top: 80px;
+            border-top: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.5);
         }
 
+        .footer p {
+            color: var(--text-secondary);
+            margin: 10px 0;
+        }
+
+        .footer p:first-child {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* CTA Button */
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 16px 32px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin: 20px 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(99, 102, 241, 0.4);
+        }
+
+        /* Responsive */
         @media (max-width: 768px) {
-            .header h1 {
-                font-size: 2em;
+            .hero {
+                padding: 40px 0 30px;
             }
 
-            .content {
+            .card {
                 padding: 20px;
             }
 
-            .code-block {
-                font-size: 0.85em;
+            .code-block-content {
                 padding: 15px;
             }
+
+            .code-block code {
+                font-size: 0.8rem;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Smooth scroll */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Selection */
+        ::selection {
+            background: var(--primary);
+            color: white;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🚀 DockUp</h1>
-            <p>Zero-Bloat PaaS - Deploy in One Command</p>
+        <div class="hero">
+            <div class="hero-content">
+                <h1>🚀 DockUp</h1>
+                <p>Zero-Bloat PaaS - Deploy Docker Compose apps from GitHub to your VPS in one command</p>
+                
+                <div class="hero-demo">
+                    <img src="demo.gif" alt="DockUp Demo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="hero-demo-placeholder" style="display: none;">
+                        <span>📹 Demo GIF Placeholder - Add demo.gif to showcase usage</span>
+                    </div>
+                </div>
+
+                <div>
+                    <a href="#quick-start" class="cta-button">Get Started</a>
+                    <a href="https://github.com/Moe1211/dockup" target="_blank" class="cta-button" style="background: rgba(30, 41, 59, 0.8); border: 1px solid var(--border);">View on GitHub</a>
+                </div>
+            </div>
         </div>
 
-        <div class="content">
-            <div class="section">
+        <div class="section">
+            <div class="card">
                 <h2>What is DockUp?</h2>
-                <p>DockUp is a minimal, zero-dependency PaaS that automatically deploys your Docker Compose applications from GitHub to your VPS. No complex setup, no bloated dependencies—just push to GitHub and deploy.</p>
+                <p style="font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 30px;">
+                    DockUp is a minimal, zero-dependency PaaS that automatically deploys your Docker Compose applications from GitHub to your VPS. No complex setup, no bloated dependencies—just push to GitHub and deploy.
+                </p>
 
                 <div class="features">
                     <div class="feature">
                         <h4>⚡ Zero Dependencies</h4>
-                        <p>Single Go binary agent, no external dependencies</p>
+                        <p>Single Go binary agent, no external dependencies required</p>
                     </div>
                     <div class="feature">
                         <h4>🔒 Secure</h4>
-                        <p>HMAC signature validation for webhooks</p>
+                        <p>HMAC signature validation and GitHub App authentication</p>
                     </div>
                     <div class="feature">
                         <h4>🚀 Simple</h4>
-                        <p>Two commands to get started</p>
+                        <p>One command to deploy, automatic setup included</p>
                     </div>
                     <div class="feature">
                         <h4>📦 Multi-App</h4>
-                        <p>Deploy multiple apps on a single VPS</p>
+                        <p>Deploy multiple apps on a single VPS seamlessly</p>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <div class="section">
+        <div class="section" id="quick-start">
+            <div class="card">
                 <h2>Quick Start</h2>
 
                 <div class="step">
-                    <h3><span class="step-number">0</span>Install DockUp (One-time, optional but recommended)</h3>
+                    <h3><span class="step-number">0</span>Install DockUp Globally (Recommended)</h3>
                     <p>Install DockUp as a global command so you can use it from any project:</p>
                     <div class="code-block">
-                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                        <code>curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install-global.sh | bash</code>
+                        <div class="code-block-header">
+                            <span class="code-block-title">Installation Command</span>
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <div class="code-block-content">
+                            <code>curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install-global.sh | bash</code>
+                        </div>
                     </div>
-                    <div class="note">
-                        <strong>Note:</strong> This installs DockUp system-wide. After installation, you can use <code>dockup</code> from any directory, just like <code>git</code>.
-                    </div>
-                    <p>Or use the one-liner installer directly (no installation needed):</p>
-                    <div class="code-block">
-                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                        <code>curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | bash -s -- deploy user@vps-ip</code>
+                    <div class="note alert">
+                        <strong>💡 Note:</strong> This installs DockUp system-wide. After installation, you can use <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">dockup</code> from any directory, just like <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">git</code>.
                     </div>
                 </div>
 
                 <div class="step">
-                    <h3><span class="step-number">1</span>Deploy Your App</h3>
-                    <p>Navigate to your project and deploy:</p>
+                    <h3><span class="step-number">1</span>Configure GitHub App (One-time)</h3>
+                    <p>Before deploying, you need to set up a GitHub App for repository access:</p>
                     <div class="code-block">
-                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                        <code>cd my-app<br>dockup deploy user@vps-ip</code>
+                        <div class="code-block-header">
+                            <span class="code-block-title">Configure GitHub App</span>
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <div class="code-block-content">
+                            <code>dockup configure-github-app user@vps-ip</code>
+                        </div>
                     </div>
-                    <div class="note">
-                        <strong>Note:</strong> If you didn't install globally, use the one-liner instead.
+                    <div class="note alert">
+                        <strong>📚 Guide:</strong> See <a href="GITHUB_APP_SETUP.md" style="color: var(--primary-light); text-decoration: underline;">GITHUB_APP_SETUP.md</a> for detailed setup instructions.
+                    </div>
+                </div>
+
+                <div class="step">
+                    <h3><span class="step-number">2</span>Deploy Your App</h3>
+                    <p>Navigate to your project and deploy in one command:</p>
+                    <div class="code-block">
+                        <div class="code-block-header">
+                            <span class="code-block-title">Deploy Command</span>
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <div class="code-block-content">
+                            <code>cd my-app
+dockup deploy user@vps-ip</code>
+                        </div>
                     </div>
                     <p>This single command will:</p>
                     <ul>
@@ -282,58 +585,22 @@
                         <li>Register the app in DockUp</li>
                         <li>Trigger an immediate build and deploy</li>
                     </ul>
-                    <div class="success">
-                        <strong>✅ That's it!</strong> Your app is now deployed and will auto-update on every push.
+                    <div class="success alert">
+                        <strong>✅ That's it!</strong> Your app is now deployed and will auto-update on every push to your configured branch.
                     </div>
                 </div>
 
                 <div class="step">
-                    <h3><span class="step-number">1</span>Initial VPS Setup (One-time per server - if not using deploy)</h3>
-                    <p>Run this command once when you first set up your VPS:</p>
+                    <h3><span class="step-number">3</span>Auto-Deploy on Push</h3>
+                    <p>Just push to your configured branch and DockUp handles the rest:</p>
                     <div class="code-block">
-                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                        <code>curl -fsSL https://your-domain.com/install.sh | bash -s -- setup user@vps-ip</code>
-                    </div>
-                    <div class="note">
-                        <strong>Note:</strong> Replace <code>user@vps-ip</code> with your actual VPS credentials (e.g., <code>root@123.45.67.89</code>)
-                    </div>
-                    <p>This will:</p>
-                    <ul>
-                        <li>Install Docker and dependencies</li>
-                        <li>Build and upload the agent binary</li>
-                        <li>Configure systemd service</li>
-                        <li>Generate SSH key for GitHub</li>
-                    </ul>
-                    <div class="warning">
-                        <strong>⚠️ Important:</strong> After setup, add the displayed SSH public key to your GitHub repository as a Deploy Key.
-                    </div>
-                </div>
-
-                <div class="step">
-                    <h3><span class="step-number">2</span>Initialize Your App (Per repository)</h3>
-                    <p>Navigate to your project directory and run:</p>
-                    <div class="code-block">
-                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                        <code>cd my-app<br>curl -fsSL https://your-domain.com/install.sh | bash -s -- init user@vps-ip</code>
-                    </div>
-                    <div class="note">
-                        <strong>Note:</strong> Make sure you're in a Git repository with a remote configured.
-                    </div>
-                    <p>This will:</p>
-                    <ul>
-                        <li>Clone your repository on the VPS</li>
-                        <li>Register the app in the agent's registry</li>
-                        <li>Generate a webhook secret</li>
-                        <li>Add GitHub webhook (if <code>gh</code> CLI is installed)</li>
-                    </ul>
-                </div>
-
-                <div class="step">
-                    <h3><span class="step-number">3</span>Deploy</h3>
-                    <p>Just push to your configured branch:</p>
-                    <div class="code-block">
-                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                        <code>git push origin main</code>
+                        <div class="code-block-header">
+                            <span class="code-block-title">Git Push</span>
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <div class="code-block-content">
+                            <code>git push origin main</code>
+                        </div>
                     </div>
                     <p>The agent will automatically:</p>
                     <ul>
@@ -342,80 +609,206 @@
                         <li>Rebuild Docker images</li>
                         <li>Restart containers</li>
                     </ul>
-                    <div class="success">
-                        <strong>✅ That's it!</strong> Your app is now deployed and will auto-update on every push.
-                    </div>
                 </div>
             </div>
+        </div>
 
-            <div class="section">
+        <div class="section">
+            <div class="card">
                 <h2>Prerequisites</h2>
                 <ul>
                     <li>A Linux VPS (Ubuntu/Debian recommended)</li>
                     <li>SSH access to your VPS</li>
                     <li>A Git repository (GitHub, GitLab, etc.)</li>
-                    <li><code>gh</code> CLI (optional, for automatic webhook setup)</li>
+                    <li>GitHub App configured (see <a href="GITHUB_APP_SETUP.md" style="color: var(--primary-light); text-decoration: underline;">GITHUB_APP_SETUP.md</a>)</li>
+                    <li><code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">gh</code> CLI (optional, for automatic webhook setup)</li>
                 </ul>
             </div>
+        </div>
 
-            <div class="section">
+        <div class="section">
+            <div class="card">
                 <h2>How It Works</h2>
-                <p>DockUp consists of two components:</p>
-                <ol>
-                    <li><strong>Agent (Server-side):</strong> A Go binary running as a systemd service that listens for webhooks</li>
-                    <li><strong>CLI (Client-side):</strong> A bash script that provisions repos via SSH</li>
+                <p style="margin-bottom: 20px;">DockUp consists of two components:</p>
+                <ol style="margin-left: 25px; color: var(--text-secondary);">
+                    <li style="margin: 15px 0;"><strong style="color: var(--primary-light);">Agent (Server-side):</strong> A Go binary running as a systemd service that listens for webhooks</li>
+                    <li style="margin: 15px 0;"><strong style="color: var(--primary-light);">CLI (Client-side):</strong> A bash script that provisions repos via SSH</li>
                 </ol>
-                <p>When you push to GitHub, a webhook triggers the agent, which then:</p>
-                <ol>
-                    <li>Validates the webhook signature</li>
-                    <li>Pulls the latest code</li>
-                    <li>Runs <code>docker compose build</code></li>
-                    <li>Runs <code>docker compose up -d</code></li>
+                <p style="margin-top: 30px; margin-bottom: 20px;">When you push to GitHub, a webhook triggers the agent, which then:</p>
+                <ol style="margin-left: 25px; color: var(--text-secondary);">
+                    <li style="margin: 15px 0;">Validates the webhook signature</li>
+                    <li style="margin: 15px 0;">Pulls the latest code using GitHub App authentication</li>
+                    <li style="margin: 15px 0;">Runs <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">docker compose build</code></li>
+                    <li style="margin: 15px 0;">Runs <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">docker compose up -d</code></li>
                 </ol>
             </div>
+        </div>
 
-            <div class="section">
+        <div class="section">
+            <div class="card">
+                <h2>Command Reference</h2>
+                
+                <div class="step">
+                    <h3><code style="background: rgba(99, 102, 241, 0.2); padding: 4px 8px; border-radius: 4px;">dockup deploy</code> (Recommended)</h3>
+                    <p><strong>Use when:</strong> You want to deploy your app in one command</p>
+                    <p><strong>What it does:</strong> Checks if DockUp is installed, registers your repository, and triggers immediate build and deploy</p>
+                    <div class="code-block">
+                        <div class="code-block-header">
+                            <span class="code-block-title">Example</span>
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <div class="code-block-content">
+                            <code>dockup deploy user@vps-ip
+dockup deploy user@vps-ip --rebuild</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <h3><code style="background: rgba(99, 102, 241, 0.2); padding: 4px 8px; border-radius: 4px;">dockup setup</code></h3>
+                    <p><strong>Use when:</strong> First time setting up a new VPS</p>
+                    <p><strong>What it does:</strong> Installs DockUp agent, Docker, and dependencies on your VPS</p>
+                    <div class="code-block">
+                        <div class="code-block-header">
+                            <span class="code-block-title">Example</span>
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <div class="code-block-content">
+                            <code>dockup setup user@vps-ip</code>
+                        </div>
+                    </div>
+                    <div class="note alert">
+                        <strong>Note:</strong> Usually not needed - <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">deploy</code> handles this automatically
+                    </div>
+                </div>
+
+                <div class="step">
+                    <h3><code style="background: rgba(99, 102, 241, 0.2); padding: 4px 8px; border-radius: 4px;">dockup disconnect</code></h3>
+                    <p><strong>Use when:</strong> You want to stop auto-deployments but keep the app running</p>
+                    <div class="code-block">
+                        <div class="code-block-header">
+                            <span class="code-block-title">Example</span>
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <div class="code-block-content">
+                            <code>dockup disconnect user@vps-ip
+dockup disconnect user@vps-ip my-app</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <h3><code style="background: rgba(99, 102, 241, 0.2); padding: 4px 8px; border-radius: 4px;">dockup remove</code></h3>
+                    <p><strong>Use when:</strong> You want to completely remove an app from your VPS</p>
+                    <div class="code-block">
+                        <div class="code-block-header">
+                            <span class="code-block-title">Example</span>
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <div class="code-block-content">
+                            <code>dockup remove user@vps-ip
+dockup remove user@vps-ip my-app</code>
+                        </div>
+                    </div>
+                    <div class="warning alert">
+                        <strong>⚠️ Warning:</strong> This permanently deletes the app directory and all its data
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="card">
                 <h2>Manual Deployment</h2>
                 <p>You can trigger a manual deployment via HTTP:</p>
                 <div class="code-block">
-                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <code>curl -H "Authorization: Bearer YOUR_SECRET" \<br>  http://vps-ip:8080/webhook/manual?app=my-app</code>
+                    <div class="code-block-header">
+                        <span class="code-block-title">Manual Deployment</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <div class="code-block-content">
+                        <code>curl -H "Authorization: Bearer YOUR_SECRET" \
+  http://vps-ip:8080/webhook/manual?app=my-app</code>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <div class="section">
+        <div class="section">
+            <div class="card">
                 <h2>Configuration</h2>
-                <p>The agent reads from <code>/etc/dockup/registry.json</code> on the VPS:</p>
+                <p>The agent reads from <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">/etc/dockup/registry.json</code> on the VPS:</p>
                 <div class="code-block">
-                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <code>{<br>  "my-app": {<br>    "path": "/opt/dockup/apps/my-app",<br>    "branch": "main",<br>    "secret": "webhook-secret-key",<br>    "compose_file": "docker-compose.prod.yml"<br>  }<br>}</code>
+                    <div class="code-block-header">
+                        <span class="code-block-title">Registry Configuration</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <div class="code-block-content">
+                        <code>{
+  "my-app": {
+    "path": "/opt/dockup/apps/my-app",
+    "branch": "main",
+    "secret": "webhook-secret-key",
+    "compose_file": "docker-compose.prod.yml"
+  }
+}</code>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <div class="section">
+        <div class="section">
+            <div class="card">
                 <h2>Monitoring</h2>
-                <p>View agent logs:</p>
+                <p>View agent logs in real-time:</p>
                 <div class="code-block">
-                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <code>ssh user@vps-ip "journalctl -u dockup -f"</code>
+                    <div class="code-block-header">
+                        <span class="code-block-title">View Logs</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <div class="code-block-content">
+                        <code>ssh user@vps-ip "journalctl -u dockup -f"</code>
+                    </div>
                 </div>
-                <p>Check agent status:</p>
+                <p style="margin-top: 20px;">Check agent status:</p>
                 <div class="code-block">
-                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <code>ssh user@vps-ip "systemctl status dockup"</code>
+                    <div class="code-block-header">
+                        <span class="code-block-title">Check Status</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <div class="code-block-content">
+                        <code>ssh user@vps-ip "systemctl status dockup"</code>
+                    </div>
+                </div>
+                <p style="margin-top: 20px;">Verify registered apps:</p>
+                <div class="code-block">
+                    <div class="code-block-header">
+                        <span class="code-block-title">List Apps</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <div class="code-block-content">
+                        <code>ssh user@vps-ip "jq 'keys' /etc/dockup/registry.json"</code>
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="footer">
-            <p>DockUp - Zero-Bloat PaaS</p>
-            <p style="margin-top: 10px; font-size: 0.9em;">Made with ❤️ for developers who want simplicity</p>
-        </div>
+    <div class="footer">
+        <p>DockUp - Zero-Bloat PaaS</p>
+        <p>Made with ❤️ for developers who want simplicity</p>
+        <p style="margin-top: 20px;">
+            <a href="https://github.com/Moe1211/dockup" target="_blank" style="color: var(--primary-light); text-decoration: none; margin: 0 10px;">GitHub</a>
+            <span style="color: var(--border);">•</span>
+            <a href="README.md" style="color: var(--primary-light); text-decoration: none; margin: 0 10px;">Documentation</a>
+            <span style="color: var(--border);">•</span>
+            <a href="TROUBLESHOOTING.md" style="color: var(--primary-light); text-decoration: none; margin: 0 10px;">Troubleshooting</a>
+        </p>
     </div>
 
     <script>
         function copyCode(button) {
-            const codeBlock = button.parentElement;
+            const codeBlock = button.closest('.code-block');
             const code = codeBlock.querySelector('code').textContent;
             
             // Create a temporary textarea to copy text
@@ -428,15 +821,20 @@
             
             try {
                 document.execCommand('copy');
+                const originalText = button.textContent;
                 button.textContent = 'Copied!';
                 button.classList.add('copied');
                 
                 setTimeout(() => {
-                    button.textContent = 'Copy';
+                    button.textContent = originalText;
                     button.classList.remove('copied');
                 }, 2000);
             } catch (err) {
                 console.error('Failed to copy:', err);
+                button.textContent = 'Error';
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                }, 2000);
             }
             
             document.body.removeChild(textarea);
@@ -452,7 +850,20 @@
                 selection.addRange(range);
             });
         });
+
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
     </script>
 </body>
 </html>
-
