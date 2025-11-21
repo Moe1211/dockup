@@ -379,32 +379,33 @@ EOF
                         echo -e "${GREEN}✅ Webhook added automatically!${NC}"
                         WEBHOOK_EXISTS=true
                     else
-                    # Check if error is because webhook already exists
-                    if echo "$FULL_RESPONSE" | grep -qi "already exists\|duplicate\|422"; then
-                        echo -e "${GREEN}✅ Webhook already exists${NC}"
-                        WEBHOOK_EXISTS=true
-                    elif echo "$FULL_RESPONSE" | grep -qi "401\|unauthorized"; then
-                        echo -e "${YELLOW}⚠️  Authentication error${NC}"
-                        echo -e "${YELLOW}   Please run: gh auth login${NC}"
-                        echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
-                    elif echo "$FULL_RESPONSE" | grep -qi "403\|forbidden"; then
-                        echo -e "${YELLOW}⚠️  Permission denied${NC}"
-                        echo -e "${YELLOW}   Make sure you have 'admin' or 'write' access to the repository${NC}"
-                        echo -e "${YELLOW}   Repository: $REPO_FULL_NAME${NC}"
-                        echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
-                    elif echo "$FULL_RESPONSE" | grep -qi "404\|not found"; then
-                        echo -e "${YELLOW}⚠️  Repository not found${NC}"
-                        echo -e "${YELLOW}   Check that the repository exists and you have access: $REPO_FULL_NAME${NC}"
-                        echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
-                    else
-                        echo -e "${YELLOW}⚠️  Could not add webhook automatically.${NC}"
-                        if [ -n "$FULL_RESPONSE" ]; then
-                            ERROR_MSG=$(echo "$FULL_RESPONSE" | head -n5 | grep -v "^$" | head -n1 | cut -c1-200)
-                            if [ -n "$ERROR_MSG" ]; then
-                                echo -e "${YELLOW}   Error: $ERROR_MSG${NC}"
+                        # Check if error is because webhook already exists
+                        if echo "$FULL_RESPONSE" | grep -qi "already exists\|duplicate\|422"; then
+                            echo -e "${GREEN}✅ Webhook already exists${NC}"
+                            WEBHOOK_EXISTS=true
+                        elif echo "$FULL_RESPONSE" | grep -qi "401\|unauthorized"; then
+                            echo -e "${YELLOW}⚠️  Authentication error${NC}"
+                            echo -e "${YELLOW}   Please run: gh auth login${NC}"
+                            echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
+                        elif echo "$FULL_RESPONSE" | grep -qi "403\|forbidden"; then
+                            echo -e "${YELLOW}⚠️  Permission denied${NC}"
+                            echo -e "${YELLOW}   Make sure you have 'admin' or 'write' access to the repository${NC}"
+                            echo -e "${YELLOW}   Repository: $REPO_FULL_NAME${NC}"
+                            echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
+                        elif echo "$FULL_RESPONSE" | grep -qi "404\|not found"; then
+                            echo -e "${YELLOW}⚠️  Repository not found${NC}"
+                            echo -e "${YELLOW}   Check that the repository exists and you have access: $REPO_FULL_NAME${NC}"
+                            echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
+                        else
+                            echo -e "${YELLOW}⚠️  Could not add webhook automatically.${NC}"
+                            if [ -n "$FULL_RESPONSE" ]; then
+                                ERROR_MSG=$(echo "$FULL_RESPONSE" | head -n5 | grep -v "^$" | head -n1 | cut -c1-200)
+                                if [ -n "$ERROR_MSG" ]; then
+                                    echo -e "${YELLOW}   Error: $ERROR_MSG${NC}"
+                                fi
                             fi
+                            echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
                         fi
-                        echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
                     fi
                 fi
             fi
