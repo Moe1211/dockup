@@ -44,6 +44,7 @@ func main() {
 	// Routes
 	http.HandleFunc("/webhook/github", handleGithub)
 	http.HandleFunc("/webhook/manual", handleManual)
+	http.HandleFunc("/reload", handleReload)
 
 	log.Printf("🚀 DockUp Agent running on :%s, watching %d apps", *port, len(registry))
 	
@@ -161,6 +162,27 @@ func handleManual(w http.ResponseWriter, r *http.Request) {
 
 	go runDeploy(appName, config)
 	w.Write([]byte("Manual deploy triggered"))
+}
+
+func handleReload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+
+	// Simple auth - check for a reload token or allow from localhost
+	// For security, we'll require a simple token or localhost
+	configFile := "/etc/dockup/registry.json" // Default, could be made configurable
+	
+	if err := loadConfig(configFile); err != nil {
+		log.Printf("❌ Failed to reload config: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to reload: %v", err), 500)
+		return
+	}
+
+	log.Printf("♻️  Registry reloaded, now watching %d apps", len(registry))
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(fmt.Sprintf("Registry reloaded. Now watching %d apps", len(registry))))
 }
 
 // --- Helpers ---

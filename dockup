@@ -358,6 +358,18 @@ cmd_deploy() {
     else
         echo -e "${GREEN}   ✓ Repository already registered${NC}"
         SECRET=$(ssh $REMOTE "jq -r '.\"$APP_NAME\".secret' /etc/dockup/registry.json")
+        
+        # Reload agent registry to ensure it has the latest config
+        # Try reload endpoint first (faster), fallback to restart if needed
+        echo -e "${BLUE}   Reloading agent registry...${NC}"
+        RELOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "http://${VPS_IP}:8080/reload" 2>/dev/null || echo -e "\n000")
+        RELOAD_CODE=$(echo "$RELOAD_RESPONSE" | tail -n1)
+        
+        if [ "$RELOAD_CODE" != "200" ]; then
+            # Reload endpoint not available or failed, restart agent
+            ssh $REMOTE "systemctl restart dockup" || true
+            sleep 2  # Give agent time to start
+        fi
     fi
 
     # Step 3: Trigger build and deploy
