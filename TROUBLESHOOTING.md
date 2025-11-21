@@ -79,6 +79,63 @@ ssh user@vps-ip "systemctl status dockup"
      http://your-vps-ip:8080/webhook/manual?app=your-app-name
    ```
 
+### Agent Service Failing to Start
+
+**Symptoms:** `systemctl status dockup` shows "failed" or "exit-code"
+
+**Diagnosis:**
+```bash
+# Check detailed logs
+ssh user@vps-ip "journalctl -u dockup -n 50 --no-pager"
+
+# Check if registry.json is valid
+ssh user@vps-ip "jq . /etc/dockup/registry.json"
+
+# Check if port 8080 is in use
+ssh user@vps-ip "netstat -tuln | grep 8080 || ss -tuln | grep 8080"
+
+# Test binary manually
+ssh user@vps-ip "/usr/local/bin/dockup-agent -port 8080 -config /etc/dockup/registry.json"
+```
+
+**Common fixes:**
+
+1. **Invalid JSON in registry.json:**
+   ```bash
+   # Fix empty or invalid JSON
+   ssh user@vps-ip "echo '{}' > /etc/dockup/registry.json"
+   ssh user@vps-ip "systemctl restart dockup"
+   ```
+
+2. **Port 8080 already in use:**
+   ```bash
+   # Find what's using the port
+   ssh user@vps-ip "lsof -i :8080 || netstat -tulpn | grep 8080 || ss -tulpn | grep 8080"
+   
+   # If it's an old dockup-agent process, kill it:
+   ssh user@vps-ip "pkill -f dockup-agent; sleep 2; systemctl restart dockup"
+   
+   # Or find and kill the specific process:
+   ssh user@vps-ip "kill \$(lsof -t -i:8080) 2>/dev/null || true"
+   ssh user@vps-ip "systemctl restart dockup"
+   
+   # Alternative: Change port in systemd service
+   ssh user@vps-ip "sed -i 's/-port 8080/-port 8081/' /etc/systemd/system/dockup.service"
+   ssh user@vps-ip "systemctl daemon-reload && systemctl restart dockup"
+   ```
+
+3. **Missing registry.json:**
+   ```bash
+   ssh user@vps-ip "mkdir -p /etc/dockup && echo '{}' > /etc/dockup/registry.json"
+   ssh user@vps-ip "systemctl restart dockup"
+   ```
+
+4. **Binary issue - rebuild and reinstall:**
+   ```bash
+   # On your local machine, rebuild and redeploy
+   dockup setup user@vps-ip
+   ```
+
 ### HTTP 404 Error When Triggering Manual Deploy
 
 **Possible causes:**

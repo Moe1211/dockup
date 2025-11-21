@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -38,7 +39,8 @@ func main() {
 
 	// Load Config
 	if err := loadConfig(*configFile); err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		log.Fatalf("❌ Failed to load config: %v", err)
+		log.Fatalf("   Check that %s exists and contains valid JSON", *configFile)
 	}
 
 	// Routes
@@ -46,13 +48,21 @@ func main() {
 	http.HandleFunc("/webhook/manual", handleManual)
 
 	log.Printf("🚀 DockUp Agent running on :%s, watching %d apps", *port, len(registry))
+	
+	// Check if port is already in use
+	listener, err := net.Listen("tcp", ":"+*port)
+	if err != nil {
+		log.Fatalf("❌ Failed to bind to port %s: %v\n   Port may already be in use. Check with: netstat -tuln | grep %s", *port, err, *port)
+	}
+	listener.Close()
+	
 	log.Fatal(http.ListenAndServe(":"+*port, nil))
 }
 
 func loadConfig(path string) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open config file %s: %v", path, err)
 	}
 	defer file.Close()
 
@@ -60,7 +70,16 @@ func loadConfig(path string) error {
 	defer registryLock.Unlock()
 
 	// Decode generic map
-	return json.NewDecoder(file).Decode(&registry)
+	if err := json.NewDecoder(file).Decode(&registry); err != nil {
+		return fmt.Errorf("failed to parse JSON config file %s: %v", path, err)
+	}
+
+	// Ensure registry is initialized (handle empty file case)
+	if registry == nil {
+		registry = make(map[string]AppConfig)
+	}
+
+	return nil
 }
 
 // --- Handlers ---

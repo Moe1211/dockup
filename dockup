@@ -56,11 +56,16 @@ After=network.target docker.service
 [Service]
 ExecStart=/usr/local/bin/dockup-agent -port 8080 -config /etc/dockup/registry.json
 Restart=always
+RestartSec=5
 User=root
 
 [Install]
 WantedBy=multi-user.target
 EOT
+
+# Stop any existing dockup processes that might be holding the port
+pkill -f dockup-agent || true
+sleep 2
 
 systemctl daemon-reload
 systemctl enable --now dockup
