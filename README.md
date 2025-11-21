@@ -46,11 +46,13 @@ dockup deploy user@vps-ip
 #### Option 2: One-Line Installer (Per-Project)
 
 **Initial VPS Setup:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | bash -s -- setup user@vps-ip
 ```
 
 **Initialize Your App:**
+
 ```bash
 cd my-app
 curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | bash -s -- init user@vps-ip
@@ -63,8 +65,9 @@ curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | ba
 ### When to Use Which Command
 
 **`dockup deploy` (Recommended)**
+
 - **Use when:** You want to deploy your app in one command
-- **What it does:** 
+- **What it does:**
   - Checks if DockUp is installed (sets up if needed)
   - Registers your repository (if not already registered)
   - Triggers immediate build and deploy
@@ -72,29 +75,34 @@ curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | ba
 - **With rebuild:** `dockup deploy user@vps-ip --rebuild`
 
 **`dockup setup`**
+
 - **Use when:** First time setting up a new VPS
 - **What it does:** Installs DockUp agent, Docker, and dependencies on your VPS
 - **Example:** `dockup setup user@vps-ip`
 - **Note:** Usually not needed - `deploy` handles this automatically
 
 **`dockup init`**
+
 - **Use when:** You only want to register a repository without deploying
 - **What it does:** Clones repo and registers it with DockUp
 - **Example:** `dockup init user@vps-ip`
 - **Note:** Usually not needed - `deploy` handles this automatically
 
 **`dockup disconnect`**
+
 - **Use when:** You want to stop auto-deployments but keep the app running
 - **What it does:** Removes GitHub webhook and registry entry, keeps app directory and containers
 - **Example:** `dockup disconnect user@vps-ip` (from git repo) or `dockup disconnect user@vps-ip my-app`
 
 **`dockup remove`**
+
 - **Use when:** You want to completely remove an app from your VPS
 - **What it does:** Stops containers, removes webhook, deletes app directory and registry entry
 - **Example:** `dockup remove user@vps-ip` (from git repo) or `dockup remove user@vps-ip my-app`
 - **Warning:** This permanently deletes the app directory and all its data
 
 **`dockup configure-github-app`**
+
 - **Use when:** First time setup or updating GitHub App credentials
 - **What it does:** Configures GitHub App credentials on your VPS for repository access
 - **Example:** `dockup configure-github-app user@vps-ip`
@@ -113,6 +121,7 @@ dockup configure-github-app user@vps-ip
 ```
 
 You'll need:
+
 - App ID (from GitHub App settings)
 - Installation ID (from installation URL)
 - Private key (the `.pem` file downloaded from GitHub)
@@ -163,6 +172,7 @@ The agent will:
 - Restart containers
 
 **Note:** DockUp works with both:
+
 - Projects using `docker-compose.yml` with pre-built images (e.g., `image: nginx:latest`)
 - Projects using `docker-compose.yml` with `Dockerfile` builds (Docker Compose will build automatically)
 
@@ -197,6 +207,7 @@ The agent reads from `/etc/dockup/registry.json` on the VPS:
 
 **Docker Compose Support:**
 DockUp works with any standard Docker Compose setup:
+
 - Projects with only `docker-compose.yml` using pre-built images
 - Projects with `docker-compose.yml` + `Dockerfile` (Compose will build automatically)
 - Projects with custom compose file names (use `compose_file` in registry)
@@ -216,6 +227,7 @@ dockup disconnect user@vps-ip my-app
 ```
 
 This will:
+
 - Remove the GitHub webhook (if GitHub CLI is available)
 - Remove the app from DockUp registry
 - Keep the app directory and containers running
@@ -233,6 +245,7 @@ dockup remove user@vps-ip my-app
 ```
 
 This will:
+
 - Stop and remove all containers
 - Remove the GitHub webhook
 - Remove the app from DockUp registry
@@ -242,7 +255,7 @@ This will:
 
 ## Project Structure
 
-```
+```txt
 dockup/
 ├── main.go           # Go agent source code
 ├── dockup            # CLI script
@@ -307,14 +320,17 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed troubleshooting guide.
    - Check "Recent Deliveries" for failed attempts
 
 2. **Check DockUp logs:**
+
    ```bash
    ssh user@vps-ip "journalctl -u dockup -n 100"
    ```
 
 3. **Verify app is registered:**
+
    ```bash
    ssh user@vps-ip "cat /etc/dockup/registry.json"
    ```
+
    - App name must match GitHub repo name exactly
    - Branch must match the branch you're pushing to
    - Secret must match webhook secret on GitHub
@@ -332,6 +348,7 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed troubleshooting guide.
 ### Agent not starting
 
 Check logs:
+
 ```bash
 ssh user@vps-ip "journalctl -u dockup -n 50"
 ```
@@ -355,4 +372,3 @@ ssh user@vps-ip "journalctl -u dockup -n 50"
 ## License
 
 MIT
-

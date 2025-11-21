@@ -5,6 +5,7 @@ This guide will walk you through creating and configuring a GitHub App for DockU
 ## Important: Each User Creates Their Own GitHub App
 
 **You do NOT share your GitHub App private key with anyone.** Each DockUp user creates their own GitHub App:
+
 - Your GitHub App is private to you
 - Your private key stays on your VPS only
 - Other users create their own GitHub Apps for their repositories
@@ -28,7 +29,7 @@ This guide will walk you through creating and configuring a GitHub App for DockU
 
 1. Go to your GitHub account settings:
    - Click your profile picture → **Settings**
-   - Or go directly to: https://github.com/settings/apps
+   - Or go directly to: <https://github.com/settings/apps>
 
 2. Click **Developer settings** (left sidebar)
 
@@ -50,7 +51,7 @@ This guide will walk you through creating and configuring a GitHub App for DockU
    - **Repository permissions:**
      - **Contents**: `Read-only` (required for cloning repositories)
      - **Metadata**: `Read-only` (required, automatically granted)
-   
+
    **Where can this GitHub App be installed?**
    - Select **Only on this account** (for personal repos) or **Any account** (if you want to share it)
 
@@ -87,9 +88,11 @@ You need to install the app on the repositories or organization where you want t
 5. Click **Install**
 
 6. **Note your Installation ID**: After installation, look at the URL. It will be something like:
+
    ```
    https://github.com/settings/installations/78901234
    ```
+
    The number at the end (78901234) is your Installation ID.
 
 ### Option B: Install on All Repositories
@@ -123,6 +126,7 @@ dockup configure-github-app user@vps-ip
 ```
 
 You'll be prompted to enter:
+
 - App ID
 - Installation ID  
 - Private key (paste the entire contents of the .pem file)
@@ -191,47 +195,55 @@ Then trigger a deployment and watch for any authentication errors.
 ### Error: "Failed to generate installation token"
 
 **Possible causes:**
+
 - App ID is incorrect
 - Private key is malformed (check it includes BEGIN/END lines)
 - Private key doesn't match the App ID
 
 **Solution:**
+
 - Re-run `dockup configure-github-app` with correct values
 - Make sure you copied the entire private key including headers
 
 ### Error: "Installation not found"
 
 **Possible causes:**
+
 - Installation ID is incorrect
 - App is not installed on the repository you're trying to access
 
 **Solution:**
+
 - Verify the Installation ID in the GitHub App installation URL
 - Make sure the app is installed on the repository/organization
 
 ### Error: "Repository access denied"
 
 **Possible causes:**
+
 - App is not installed on the repository
 - App doesn't have access to the repository (if installed on "selected repositories")
 
 **Solution:**
+
 - Go to GitHub App → Install App → Select the repository
 - Or install the app on "All repositories"
 
 ### Error: "Token expired"
 
 **Possible causes:**
+
 - Installation tokens expire after 1 hour
 - This is normal - DockUp should automatically regenerate tokens
 
 **Solution:**
+
 - This should be handled automatically by DockUp
 - If you see this error repeatedly, check the agent logs
 
 ## Security Best Practices
 
-1. **Protect your private key**: 
+1. **Protect your private key**:
    - Never commit the `.pem` file to git
    - Store it securely (password manager, encrypted storage)
    - The key is stored on your VPS at `/etc/dockup/github-app.json` with restricted permissions
@@ -281,6 +293,5 @@ ssh root@95.217.208.54 "journalctl -u dockup -n 50"
 ## Need Help?
 
 - Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues
-- Review GitHub App documentation: https://docs.github.com/en/apps/creating-github-apps
+- Review GitHub App documentation: <https://docs.github.com/en/apps/creating-github-apps>
 - Open an issue on the DockUp repository
-

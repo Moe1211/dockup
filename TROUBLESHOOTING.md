@@ -9,6 +9,7 @@ ssh user@vps-ip "journalctl -u dockup -f"
 ```
 
 This shows live logs from the DockUp agent. You'll see:
+
 - Webhook received messages
 - Deployment start/completion
 - Any errors during deployment
@@ -40,6 +41,7 @@ ssh user@vps-ip "systemctl status dockup"
 **Diagnosis Steps:**
 
 1. **Check if webhook is configured:**
+
    ```bash
    # On GitHub: Go to Settings → Webhooks
    # Verify webhook URL points to: http://your-vps-ip:8080/webhook/github
@@ -52,24 +54,29 @@ ssh user@vps-ip "systemctl status dockup"
    - Look for failed deliveries (red X)
 
 3. **Check DockUp agent logs:**
+
    ```bash
    ssh user@vps-ip "journalctl -u dockup -n 100"
    ```
+
    Look for:
    - "Received webhook for unknown repo" - means repo name doesn't match
    - "Invalid signature" - webhook secret mismatch
    - "Ignored branch" - wrong branch pushed
 
 4. **Verify registry configuration:**
+
    ```bash
    ssh user@vps-ip "cat /etc/dockup/registry.json"
    ```
+
    Check:
    - App name matches your GitHub repo name exactly
    - Branch matches the branch you're pushing to
    - Secret matches the webhook secret on GitHub
 
 5. **Test webhook manually:**
+
    ```bash
    # Get the secret from registry
    SECRET=$(ssh user@vps-ip "jq -r '.\"your-app-name\".secret' /etc/dockup/registry.json")
@@ -84,6 +91,7 @@ ssh user@vps-ip "systemctl status dockup"
 **Symptoms:** `systemctl status dockup` shows "failed" or "exit-code"
 
 **Diagnosis:**
+
 ```bash
 # Check detailed logs
 ssh user@vps-ip "journalctl -u dockup -n 50 --no-pager"
@@ -101,6 +109,7 @@ ssh user@vps-ip "/usr/local/bin/dockup-agent -port 8080 -config /etc/dockup/regi
 **Common fixes:**
 
 1. **Invalid JSON in registry.json:**
+
    ```bash
    # Fix empty or invalid JSON
    ssh user@vps-ip "echo '{}' > /etc/dockup/registry.json"
@@ -108,6 +117,7 @@ ssh user@vps-ip "/usr/local/bin/dockup-agent -port 8080 -config /etc/dockup/regi
    ```
 
 2. **Port 8080 already in use:**
+
    ```bash
    # Find what's using the port
    ssh user@vps-ip "lsof -i :8080 || netstat -tulpn | grep 8080 || ss -tulpn | grep 8080"
@@ -125,12 +135,14 @@ ssh user@vps-ip "/usr/local/bin/dockup-agent -port 8080 -config /etc/dockup/regi
    ```
 
 3. **Missing registry.json:**
+
    ```bash
    ssh user@vps-ip "mkdir -p /etc/dockup && echo '{}' > /etc/dockup/registry.json"
    ssh user@vps-ip "systemctl restart dockup"
    ```
 
 4. **Binary issue - rebuild and reinstall:**
+
    ```bash
    # On your local machine, rebuild and redeploy
    dockup setup user@vps-ip
@@ -139,11 +151,13 @@ ssh user@vps-ip "/usr/local/bin/dockup-agent -port 8080 -config /etc/dockup/regi
 ### HTTP 404 Error When Triggering Manual Deploy
 
 **Possible causes:**
+
 1. App name doesn't match what's in registry
 2. Registry file is corrupted or not loaded
 3. Agent needs to be restarted
 
 **Fix:**
+
 ```bash
 # Check what apps are registered
 ssh user@vps-ip "jq 'keys' /etc/dockup/registry.json"
@@ -160,7 +174,9 @@ ssh user@vps-ip "systemctl status dockup"
 **Symptoms:** GitHub shows webhook delivery failed with 403 Forbidden
 
 **Fix:**
+
 1. Get the secret from VPS:
+
    ```bash
    ssh user@vps-ip "jq -r '.\"your-app-name\".secret' /etc/dockup/registry.json"
    ```
@@ -176,6 +192,7 @@ ssh user@vps-ip "systemctl status dockup"
 **Symptoms:** Pushes to some branches work, others don't
 
 **Check:**
+
 ```bash
 ssh user@vps-ip "jq -r '.\"your-app-name\".branch' /etc/dockup/registry.json"
 ```
@@ -185,11 +202,13 @@ ssh user@vps-ip "jq -r '.\"your-app-name\".branch' /etc/dockup/registry.json"
 ### Docker Compose Build Fails
 
 **Check deployment logs:**
+
 ```bash
 ssh user@vps-ip "journalctl -u dockup -n 200 | grep -A 20 'Deploy FAILED'"
 ```
 
 **Common issues:**
+
 - Missing `docker-compose.yml` file
 - Docker Compose syntax errors
 - Missing dependencies in Dockerfile
@@ -197,6 +216,7 @@ ssh user@vps-ip "journalctl -u dockup -n 200 | grep -A 20 'Deploy FAILED'"
 - Dockerfile not found (if docker-compose.yml references a build context with Dockerfile)
 
 **Note:** DockUp handles both:
+
 - Projects using pre-built images (no Dockerfile needed)
 - Projects with Dockerfile (Docker Compose will build it automatically)
 
@@ -205,10 +225,13 @@ ssh user@vps-ip "journalctl -u dockup -n 200 | grep -A 20 'Deploy FAILED'"
 **Symptoms:** "Failed to clone repository" error
 
 **Check:**
+
 1. **GitHub App is configured:**
+
    ```bash
    ssh user@vps-ip "test -f /etc/dockup/github-app.json && echo 'configured' || echo 'not configured'"
    ```
+
    If not configured, run: `dockup configure-github-app user@vps-ip`
 
 2. **GitHub App is installed on the repository:**
@@ -217,19 +240,24 @@ ssh user@vps-ip "journalctl -u dockup -n 200 | grep -A 20 'Deploy FAILED'"
    - If not installed, go to your GitHub App settings → Install App → Select repository
 
 3. **Verify GitHub App credentials:**
+
    ```bash
    ssh user@vps-ip "jq '.app_id, .installation_id' /etc/dockup/github-app.json"
    ```
+
    Both should be present and non-empty
 
 4. **Check agent can generate tokens:**
+
    ```bash
    # Test token generation endpoint
    ssh user@vps-ip "curl -s 'http://localhost:8080/github/token-url?repo=https://github.com/user/repo.git'"
    ```
+
    Should return a token-authenticated URL, not an error
 
 5. **Repository URL is correct:**
+
    ```bash
    ssh user@vps-ip "jq -r '.\"your-app-name\"' /etc/dockup/registry.json"
    ```
@@ -241,6 +269,7 @@ ssh user@vps-ip "journalctl -u dockup -n 200 | grep -A 20 'Deploy FAILED'"
 **Symptoms:** Agent logs show "GitHub App not configured" or cloning fails
 
 **Fix:**
+
 ```bash
 # Configure GitHub App
 dockup configure-github-app user@vps-ip
@@ -256,24 +285,30 @@ See [GITHUB_APP_SETUP.md](GITHUB_APP_SETUP.md) for detailed setup instructions.
 **Symptoms:** Agent logs show token generation errors
 
 **Possible causes:**
+
 - Invalid App ID
 - Invalid Installation ID
 - Malformed private key
 - Private key doesn't match App ID
 
 **Fix:**
+
 1. Verify credentials are correct:
+
    ```bash
    ssh user@vps-ip "jq '.' /etc/dockup/github-app.json"
    ```
 
 2. Check private key format (should include BEGIN/END markers):
+
    ```bash
    ssh user@vps-ip "jq -r '.private_key' /etc/dockup/github-app.json | head -1"
    ```
+
    Should start with `-----BEGIN`
 
 3. Re-configure with correct values:
+
    ```bash
    dockup configure-github-app user@vps-ip
    ```
@@ -283,11 +318,13 @@ See [GITHUB_APP_SETUP.md](GITHUB_APP_SETUP.md) for detailed setup instructions.
 **Symptoms:** Token generation succeeds but git operations fail with 404/403
 
 **Possible causes:**
+
 - Installation ID is incorrect
 - GitHub App is not installed on the repository
 - App doesn't have access to the repository
 
 **Fix:**
+
 1. Verify Installation ID:
    - Go to your GitHub App → Install App
    - Check the installation URL: `https://github.com/settings/installations/INSTALLATION_ID`
@@ -309,16 +346,19 @@ See [GITHUB_APP_SETUP.md](GITHUB_APP_SETUP.md) for detailed setup instructions.
 **Note:** Installation tokens expire after 1 hour. DockUp automatically caches and regenerates tokens. If you see expiration errors:
 
 1. **Check agent is running:**
+
    ```bash
    ssh user@vps-ip "systemctl status dockup"
    ```
 
 2. **Restart agent to clear cache:**
+
    ```bash
    ssh user@vps-ip "systemctl restart dockup"
    ```
 
 3. **Check logs for token errors:**
+
    ```bash
    ssh user@vps-ip "journalctl -u dockup -n 50 | grep -i token"
    ```
@@ -349,8 +389,8 @@ ssh user@vps-ip "
 ## Getting Help
 
 If issues persist:
+
 1. Check all logs: `journalctl -u dockup -n 200`
 2. Verify registry: `cat /etc/dockup/registry.json`
 3. Test webhook manually (see above)
 4. Check GitHub webhook delivery logs
-
