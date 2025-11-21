@@ -173,17 +173,67 @@ dockup/
 
 ## Monitoring
 
-View agent logs:
+### View Real-time Logs
+
+Watch live deployment logs:
 
 ```bash
 ssh user@vps-ip "journalctl -u dockup -f"
 ```
 
-Check agent status:
+### View Recent Logs
+
+See last 50 log entries:
+
+```bash
+ssh user@vps-ip "journalctl -u dockup -n 50"
+```
+
+### Check Agent Status
 
 ```bash
 ssh user@vps-ip "systemctl status dockup"
 ```
+
+### Verify Registered Apps
+
+Check what apps are registered:
+
+```bash
+ssh user@vps-ip "jq 'keys' /etc/dockup/registry.json"
+```
+
+### Check App Configuration
+
+View configuration for a specific app:
+
+```bash
+ssh user@vps-ip "jq '.\"your-app-name\"' /etc/dockup/registry.json"
+```
+
+## Troubleshooting
+
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed troubleshooting guide.
+
+**Quick checks if auto-deploy isn't working:**
+
+1. **Check if webhook is configured on GitHub:**
+   - Go to your repo → Settings → Webhooks
+   - Verify webhook URL: `http://your-vps-ip:8080/webhook/github`
+   - Check "Recent Deliveries" for failed attempts
+
+2. **Check DockUp logs:**
+   ```bash
+   ssh user@vps-ip "journalctl -u dockup -n 100"
+   ```
+
+3. **Verify app is registered:**
+   ```bash
+   ssh user@vps-ip "cat /etc/dockup/registry.json"
+   ```
+   - App name must match GitHub repo name exactly
+   - Branch must match the branch you're pushing to
+   - Secret must match webhook secret on GitHub
 
 ## Security Notes
 
