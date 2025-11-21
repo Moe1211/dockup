@@ -133,7 +133,8 @@ echo ""
 
 # Test if dockup is available
 if command -v dockup &> /dev/null; then
-    echo -e "${GREEN}✓ 'dockup' command is available${NC}"
+    echo -e "${GREEN}✓ 'dockup' command is available${NC}\n"
+    echo -e "${GREEN}DockUp version: $(dockup version | grep 'DockUp Agent' | awk '{print $3}')${NC}"
 else
     echo -e "${YELLOW}⚠️  'dockup' command not found in PATH${NC}"
     echo -e "${YELLOW}   Try: source ~/.zshrc (or ~/.bashrc)${NC}"
