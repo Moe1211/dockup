@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.19"
+DOCKUP_VERSION="1.0.20"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -1484,8 +1484,12 @@ cmd_list() {
     echo -e "${BLUE}Found $APP_COUNT registered app(s):${NC}"
     echo ""
     
-    # Get all app names into an array using mapfile (more reliable than while loop with pipe)
-    mapfile -t APP_NAMES_ARRAY < <(ssh $REMOTE "jq -r 'keys[]' /etc/dockup/registry.json" 2>/dev/null)
+    # Get all app names - use process substitution to avoid subshell issues
+    # Read into array using a method compatible with older bash versions
+    APP_NAMES_ARRAY=()
+    while IFS= read -r line; do
+        [ -n "$line" ] && APP_NAMES_ARRAY+=("$line")
+    done < <(ssh $REMOTE "jq -r 'keys[]' /etc/dockup/registry.json" 2>/dev/null)
     
     # Iterate over each app name
     for APP_NAME in "${APP_NAMES_ARRAY[@]}"; do
