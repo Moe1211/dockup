@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this on releases
-DOCKUP_VERSION="1.0.9"
+DOCKUP_VERSION="1.0.10"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -936,8 +936,8 @@ cmd_disconnect() {
     fi
 
     # Detect app name from git context or use provided argument
-    if [ -n "$3" ]; then
-        APP_NAME="$3"
+    if [ -n "$1" ]; then
+        APP_NAME="$1"
     elif git rev-parse --show-toplevel > /dev/null 2>&1; then
         APP_NAME=$(basename `git rev-parse --show-toplevel`)
     else
@@ -1286,8 +1286,8 @@ cmd_remove() {
     fi
 
     # Detect app name from git context or use provided argument
-    if [ -n "$3" ]; then
-        APP_NAME="$3"
+    if [ -n "$1" ]; then
+        APP_NAME="$1"
     elif git rev-parse --show-toplevel > /dev/null 2>&1; then
         APP_NAME=$(basename `git rev-parse --show-toplevel`)
     else
@@ -1415,8 +1415,8 @@ case "$1" in
     setup)      REMOTE=$2; cmd_setup ;;
     init)       REMOTE=$2; cmd_init ;;
     deploy)     REMOTE=$2; cmd_deploy "$3" ;;
-    disconnect) REMOTE=$2; cmd_disconnect ;;
-    remove)     REMOTE=$2; cmd_remove ;;
+    disconnect) REMOTE=$2; cmd_disconnect "$3" ;;
+    remove)     REMOTE=$2; cmd_remove "$3" ;;
     configure-github-app) REMOTE=$2; shift; shift; cmd_configure_github_app "$@" ;;
     version|--version|-v) cmd_version; exit 0 ;;
     *)          echo "Usage: dockup {setup|init|deploy|disconnect|remove|configure-github-app|version} user@host [options]"
