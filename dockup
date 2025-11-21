@@ -88,9 +88,24 @@ cmd_setup() {
 cmd_init() {
     if [ -z "$REMOTE" ]; then echo -e "${RED}Usage: ./dockup init user@host${NC}"; exit 1; fi
 
-    # 1. Context Detection
+    # 1. Context Detection - Must be run from a Git repository
+    if ! git rev-parse --show-toplevel > /dev/null 2>&1; then
+        echo -e "${RED}❌ Error: Not a Git repository${NC}"
+        echo -e "${YELLOW}The 'init' command must be run from inside your project's Git repository.${NC}"
+        echo -e "${YELLOW}Example: cd /path/to/your-app && ./dockup init user@vps-ip${NC}"
+        exit 1
+    fi
+
     APP_NAME=$(basename `git rev-parse --show-toplevel`)
     REPO_URL=$(git config --get remote.origin.url)
+    
+    if [ -z "$REPO_URL" ]; then
+        echo -e "${RED}❌ Error: No Git remote found${NC}"
+        echo -e "${YELLOW}Please add a remote origin to your repository:${NC}"
+        echo -e "${YELLOW}  git remote add origin <your-repo-url>${NC}"
+        exit 1
+    fi
+    
     BRANCH=$(git rev-parse --abbrev-ref HEAD)
     SECRET=$(openssl rand -hex 20)
 
