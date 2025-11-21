@@ -271,17 +271,19 @@ func getGitHubTokenURL(repoURL string) (string, error) {
 	// git@github.com:user/repo.git -> https://x-access-token:TOKEN@github.com/user/repo.git
 	// https://github.com/user/repo.git -> https://x-access-token:TOKEN@github.com/user/repo.git
 	
-	// Remove existing token if present (in case of malformed URL)
-	if strings.Contains(repoURL, "@github.com") && !strings.Contains(repoURL, "x-access-token:") {
-		// Extract just the repo path part
+	// Handle SSH URLs first (before credential cleanup)
+	if strings.HasPrefix(repoURL, "git@github.com:") {
+		repoURL = strings.Replace(repoURL, "git@github.com:", "https://github.com/", 1)
+	}
+	
+	// Remove existing credentials if present (for HTTPS URLs with user:pass or token@github.com)
+	// This only applies to HTTPS URLs, not SSH (which we already converted above)
+	if strings.HasPrefix(repoURL, "https://") && strings.Contains(repoURL, "@github.com") && !strings.Contains(repoURL, "x-access-token:") {
+		// Extract just the repo path part (remove user:pass@ or token@)
 		parts := strings.Split(repoURL, "@github.com")
 		if len(parts) > 1 {
 			repoURL = "https://github.com" + parts[1]
 		}
-	}
-	
-	if strings.HasPrefix(repoURL, "git@github.com:") {
-		repoURL = strings.Replace(repoURL, "git@github.com:", "https://github.com/", 1)
 	}
 	
 	if strings.HasPrefix(repoURL, "https://github.com/") {
