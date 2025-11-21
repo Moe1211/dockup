@@ -125,8 +125,12 @@ The agent will:
 
 - Validate the webhook signature
 - Pull the latest code
-- Rebuild Docker images
+- Rebuild Docker images (handles both Dockerfile-based builds and pre-built images)
 - Restart containers
+
+**Note:** DockUp works with both:
+- Projects using `docker-compose.yml` with pre-built images (e.g., `image: nginx:latest`)
+- Projects using `docker-compose.yml` with `Dockerfile` builds (Docker Compose will build automatically)
 
 ## Manual Deployment
 
@@ -156,6 +160,12 @@ The agent reads from `/etc/dockup/registry.json` on the VPS:
 - `branch`: Branch to watch for deployments
 - `secret`: HMAC secret for webhook validation
 - `compose_file`: Optional override (defaults to `docker-compose.yml`)
+
+**Docker Compose Support:**
+DockUp works with any standard Docker Compose setup:
+- Projects with only `docker-compose.yml` using pre-built images
+- Projects with `docker-compose.yml` + `Dockerfile` (Compose will build automatically)
+- Projects with custom compose file names (use `compose_file` in registry)
 
 ## Project Structure
 

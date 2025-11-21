@@ -194,6 +194,11 @@ ssh user@vps-ip "journalctl -u dockup -n 200 | grep -A 20 'Deploy FAILED'"
 - Docker Compose syntax errors
 - Missing dependencies in Dockerfile
 - Port conflicts
+- Dockerfile not found (if docker-compose.yml references a build context with Dockerfile)
+
+**Note:** DockUp handles both:
+- Projects using pre-built images (no Dockerfile needed)
+- Projects with Dockerfile (Docker Compose will build it automatically)
 
 ### Repository Not Cloning
 
