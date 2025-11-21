@@ -369,6 +369,21 @@ ssh user@vps-ip "journalctl -u dockup -n 50"
 3. Ensure webhook is configured for "push" events
 4. Check GitHub webhook delivery logs
 
+## Roadmap & Features
+
+- **[ROADMAP.md](ROADMAP.md)** - Detailed roadmap with upcoming features and contribution guide
+- **[FEATURES.md](FEATURES.md)** - Comprehensive list of all current features
+
+## Contributing
+
+DockUp is open-source and free to use. We welcome contributions from the community!
+
+See [ROADMAP.md](ROADMAP.md) for:
+- Current feature status
+- Upcoming phases and tasks
+- How to contribute
+- Contribution guidelines
+
 ## License
 
 MIT
