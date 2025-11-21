@@ -8,7 +8,7 @@ DockUp aims to be the simplest, most lightweight PaaS solution that enables deve
 
 ---
 
-## ✅ Current Features (v1.0.5)
+## ✅ Current Features (v1.0.21)
 
 All features listed below are **fully implemented and working**.
 
@@ -469,6 +469,6 @@ We measure success by:
 ---
 
 **Last Updated**: 2024  
-**Current Version**: v1.0.5  
+**Current Version**: v1.0.21  
 **Maintainer**: [Your GitHub Username]
 

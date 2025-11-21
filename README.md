@@ -71,42 +71,59 @@ curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | ba
   - Checks if DockUp is installed (sets up if needed)
   - Registers your repository (if not already registered)
   - Triggers immediate build and deploy
-- **Example:** `dockup deploy user@vps-ip`
-- **With rebuild:** `dockup deploy user@vps-ip --rebuild`
+- **Example:** `dockup user@vps-ip deploy`
+- **With rebuild:** `dockup user@vps-ip deploy --rebuild`
 
 **`dockup setup`**
 
 - **Use when:** First time setting up a new VPS
 - **What it does:** Installs DockUp agent, Docker, and dependencies on your VPS
-- **Example:** `dockup setup user@vps-ip`
+- **Example:** `dockup user@vps-ip setup`
 - **Note:** Usually not needed - `deploy` handles this automatically
 
 **`dockup init`**
 
 - **Use when:** You only want to register a repository without deploying
 - **What it does:** Clones repo and registers it with DockUp
-- **Example:** `dockup init user@vps-ip`
+- **Example:** `dockup user@vps-ip init`
 - **Note:** Usually not needed - `deploy` handles this automatically
 
 **`dockup disconnect`**
 
 - **Use when:** You want to stop auto-deployments but keep the app running
 - **What it does:** Removes GitHub webhook and registry entry, keeps app directory and containers
-- **Example:** `dockup disconnect user@vps-ip` (from git repo) or `dockup disconnect user@vps-ip my-app`
+- **Example:** `dockup user@vps-ip disconnect` (from git repo) or `dockup user@vps-ip disconnect my-app`
 
 **`dockup remove`**
 
 - **Use when:** You want to completely remove an app from your VPS
 - **What it does:** Stops containers, removes webhook, deletes app directory and registry entry
-- **Example:** `dockup remove user@vps-ip` (from git repo) or `dockup remove user@vps-ip my-app`
+- **Example:** `dockup user@vps-ip remove` (from git repo) or `dockup user@vps-ip remove my-app`
 - **Warning:** This permanently deletes the app directory and all its data
 
 **`dockup configure-github-app`**
 
 - **Use when:** First time setup or updating GitHub App credentials
 - **What it does:** Configures GitHub App credentials on your VPS for repository access
-- **Example:** `dockup configure-github-app user@vps-ip`
+- **Example:** `dockup user@vps-ip configure-github-app`
 - **Note:** Required before deploying repositories. See [GITHUB_APP_SETUP.md](GITHUB_APP_SETUP.md)
+- **Features:** 
+  - Uses DockUp GitHub App (App ID: 2330335)
+  - Auto-detects Installation ID via GitHub CLI if available
+
+**`dockup version`**
+
+- **Use when:** Check installed version and see if updates are available
+- **What it does:** Displays current version and compares with latest GitHub release
+- **Example:** `dockup version`
+- **Note:** Automatically checks for updates (can be disabled with `DOCKUP_SKIP_UPDATE_CHECK`)
+
+**`dockup list`**
+
+- **Use when:** View all apps registered on your VPS
+- **What it does:** Lists all registered apps with their configuration and status
+- **Example:** `dockup user@vps-ip list`
+- **Shows:** App name, path, branch, compose file, directory status, and container status
 
 ### 1. Set Up GitHub App (One-time)
 
@@ -117,7 +134,7 @@ Before deploying, you need to create and configure a GitHub App:
 3. **Configure DockUp** with your GitHub App credentials:
 
 ```bash
-dockup configure-github-app user@vps-ip
+dockup user@vps-ip configure-github-app
 ```
 
 You'll need:
@@ -129,7 +146,7 @@ You'll need:
 ### 2. Initial VPS Setup (One-time per server)
 
 ```bash
-./dockup setup user@vps-ip
+dockup user@vps-ip setup
 ```
 
 This will:
@@ -146,7 +163,7 @@ Navigate to your project directory and run:
 
 ```bash
 cd my-app
-./dockup init user@vps-ip
+dockup user@vps-ip init
 ```
 
 This will:
@@ -220,10 +237,10 @@ Stop auto-deployments but keep the app running:
 
 ```bash
 # From inside the project directory
-dockup disconnect user@vps-ip
+dockup user@vps-ip disconnect
 
 # Or specify app name
-dockup disconnect user@vps-ip my-app
+dockup user@vps-ip disconnect my-app
 ```
 
 This will:
@@ -238,10 +255,10 @@ Permanently delete an app from your VPS:
 
 ```bash
 # From inside the project directory
-dockup remove user@vps-ip
+dockup user@vps-ip remove
 
 # Or specify app name
-dockup remove user@vps-ip my-app
+dockup user@vps-ip remove my-app
 ```
 
 This will:
@@ -292,9 +309,15 @@ ssh user@vps-ip "journalctl -u dockup -n 50"
 ssh user@vps-ip "systemctl status dockup"
 ```
 
-### Verify Registered Apps
+### List Registered Apps
 
-Check what apps are registered:
+List all registered apps with details:
+
+```bash
+dockup user@vps-ip list
+```
+
+Or check the registry file directly:
 
 ```bash
 ssh user@vps-ip "jq 'keys' /etc/dockup/registry.json"

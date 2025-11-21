@@ -106,7 +106,7 @@ MAIN_GO_URL="${MAIN_GO_URL:-$DOCKUP_REPO_URL/main.go}"
 
 Or set environment variables when calling:
 ```bash
-DOCKUP_REPO_URL=https://your-domain.com curl -fsSL https://your-domain.com/install.sh | bash -s -- setup user@vps-ip
+DOCKUP_REPO_URL=https://your-domain.com curl -fsSL https://your-domain.com/install.sh | bash -s -- user@vps-ip setup
 ```
 
 ## Testing
@@ -114,11 +114,11 @@ DOCKUP_REPO_URL=https://your-domain.com curl -fsSL https://your-domain.com/insta
 Test the installer locally:
 ```bash
 # Test setup command
-curl -fsSL http://localhost:8000/install.sh | bash -s -- setup user@vps-ip
+curl -fsSL http://localhost:8000/install.sh | bash -s -- user@vps-ip setup
 
 # Test init command
 cd /path/to/your/repo
-curl -fsSL http://localhost:8000/install.sh | bash -s -- init user@vps-ip
+curl -fsSL http://localhost:8000/install.sh | bash -s -- user@vps-ip init
 ```
 
 ## Security Considerations
@@ -145,7 +145,7 @@ sed -i 's|yourusername|YOUR_USERNAME|g' install.sh
 
 4. Share the one-liner:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/dockup/main/install.sh | bash -s -- init user@vps-ip
+curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/dockup/main/install.sh | bash -s -- user@vps-ip init
 ```
 
 ## Custom Domain
@@ -164,6 +164,6 @@ DOCKUP_REPO_URL="https://dockup.yourdomain.com"
 
 Then the one-liner becomes:
 ```bash
-curl -fsSL https://dockup.yourdomain.com/install.sh | bash -s -- init user@vps-ip
+curl -fsSL https://dockup.yourdomain.com/install.sh | bash -s -- user@vps-ip init
 ```
 

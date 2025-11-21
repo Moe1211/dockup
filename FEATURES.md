@@ -76,13 +76,14 @@ A comprehensive list of all features in DockUp, organized by category.
 ### Setup & Configuration
 - ✅ `dockup setup` - Initial VPS setup
 - ✅ `dockup configure-github-app` - GitHub App configuration
-- ✅ `dockup version` - Version information
+- ✅ `dockup version` - Version information with update checking
 
 ### Deployment Commands
 - ✅ `dockup deploy` - Unified deploy command (recommended)
 - ✅ `dockup init` - Register repository
 - ✅ `dockup disconnect` - Unlink project
 - ✅ `dockup remove` - Complete app removal
+- ✅ `dockup list` - List all registered apps
 
 ### CLI Features
 - ✅ Context-aware (auto-detects git repository)
@@ -92,6 +93,8 @@ A comprehensive list of all features in DockUp, organized by category.
 - ✅ Progress indicators
 - ✅ Comprehensive error messages
 - ✅ Interactive prompts (for confirmation)
+- ✅ Automatic update checking
+- ✅ Version comparison and update notifications
 
 ---
 
@@ -99,10 +102,12 @@ A comprehensive list of all features in DockUp, organized by category.
 
 ### GitHub App
 - ✅ GitHub App creation guide
+- ✅ Hardcoded App ID (2330335) for DockUp GitHub App
 - ✅ Installation ID management
 - ✅ Private key management
 - ✅ Automatic token generation
 - ✅ Token URL conversion for git operations
+- ✅ Auto-detection of Installation ID via GitHub CLI
 
 ### Repository Management
 - ✅ Automatic repository cloning
@@ -277,7 +282,7 @@ A comprehensive list of all features in DockUp, organized by category.
 - **Lines of Code**: ~2,000+ (Go agent + Bash CLI)
 - **Dependencies**: 1 (Go JWT library)
 - **Supported Platforms**: Linux (Ubuntu/Debian recommended)
-- **Current Version**: v1.0.5
+- **Current Version**: v1.0.21
 
 ---
 
