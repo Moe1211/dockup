@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.22"
+DOCKUP_VERSION="1.0.23"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -190,15 +190,17 @@ check_for_updates() {
     fi
     
     # Get latest version (non-blocking, cached)
-    local latest_version=$(get_latest_version 2>/dev/null || echo "")
+    # Use a subshell to prevent set -e from affecting the main script
+    local latest_version=""
+    latest_version=$(get_latest_version 2>/dev/null || echo "") || true
     
     # If we couldn't get latest version, silently continue
     if [ -z "$latest_version" ]; then
         return 0
     fi
     
-    # Compare versions
-    compare_versions "$DOCKUP_VERSION" "$latest_version"
+    # Compare versions (don't fail if comparison fails)
+    compare_versions "$DOCKUP_VERSION" "$latest_version" || true
     local comparison_result=$?
     
     # If installed version is less than latest, show update message
@@ -209,6 +211,8 @@ check_for_updates() {
         echo -e "${YELLOW}   Update: curl -fsSL https://raw.githubusercontent.com/${DOCKUP_REPO}/main/install-global.sh | bash${NC}"
         echo ""
     fi
+    
+    return 0
 }
 
 # Try to find main.go in multiple locations:
@@ -284,16 +288,16 @@ EOF
 
 # --- Command: SETUP (Provision VPS) ---
 cmd_setup() {
-    # Check for updates
-    check_for_updates
-    
     # REMOTE is passed as first argument
     SETUP_REMOTE="$1"
     
     if [ -z "$SETUP_REMOTE" ]; then 
-        echo -e "${RED}Usage: ./dockup user@host setup${NC}"; 
+        echo -e "${RED}Usage: ./dockup user@host setup${NC}" >&2
         exit 1
     fi
+    
+    # Check for updates (don't fail if this fails)
+    check_for_updates || true
 
     print_version
     echo ""
@@ -343,10 +347,21 @@ cmd_setup() {
 
     echo -e "${GREEN}🚀 Uploading Agent and Installer to $SETUP_REMOTE...${NC}"
     generate_installer_script # Create temp script
-    scp -q $BINARY_NAME _remote_install.sh $SETUP_REMOTE:~/
+    
+    if ! scp -q $BINARY_NAME _remote_install.sh $SETUP_REMOTE:~/ 2>&1; then
+        echo -e "${RED}❌ Failed to upload files to $SETUP_REMOTE${NC}" >&2
+        echo -e "${YELLOW}   Check SSH connectivity: ssh $SETUP_REMOTE 'echo test'${NC}" >&2
+        rm -f _remote_install.sh $BINARY_NAME 2>/dev/null || true
+        exit 1
+    fi
 
     echo -e "${GREEN}⚙️  Running Remote Installer...${NC}"
-    ssh $SETUP_REMOTE "chmod +x _remote_install.sh && ./_remote_install.sh"
+    if ! ssh $SETUP_REMOTE "chmod +x _remote_install.sh && ./_remote_install.sh" 2>&1; then
+        echo -e "${RED}❌ Failed to run installer on $SETUP_REMOTE${NC}" >&2
+        echo -e "${YELLOW}   Check SSH access and permissions${NC}" >&2
+        rm -f _remote_install.sh $BINARY_NAME 2>/dev/null || true
+        exit 1
+    fi
     
     # Cleanup
     rm _remote_install.sh $BINARY_NAME
@@ -1441,26 +1456,33 @@ cmd_remove() {
 
 # --- Command: LIST (List registered apps) ---
 cmd_list() {
-    # Check for updates
-    check_for_updates
-    
     REMOTE="$1"
     
     if [ -z "$REMOTE" ]; then 
-        echo -e "${RED}Usage: ./dockup user@host list${NC}"
+        echo -e "${RED}Usage: ./dockup user@host list${NC}" >&2
         exit 1
     fi
+    
+    # Check for updates (don't fail if this fails)
+    check_for_updates || true
 
     print_version
     echo ""
     echo -e "${GREEN}📋 Registered Apps on $REMOTE${NC}"
     echo ""
 
+    # Check SSH connectivity first
+    if ! ssh $REMOTE "echo test" >/dev/null 2>&1; then
+        echo -e "${RED}❌ Cannot connect to $REMOTE${NC}" >&2
+        echo -e "${YELLOW}   Check SSH connectivity and credentials${NC}" >&2
+        exit 1
+    fi
+    
     # Check if registry.json exists
     if ! ssh $REMOTE "test -f /etc/dockup/registry.json" 2>/dev/null; then
-        echo -e "${YELLOW}⚠️  Registry file not found${NC}"
-        echo -e "${YELLOW}   DockUp may not be set up on this VPS${NC}"
-        echo -e "${YELLOW}   Run: dockup $REMOTE setup${NC}"
+        echo -e "${YELLOW}⚠️  Registry file not found${NC}" >&2
+        echo -e "${YELLOW}   DockUp may not be set up on this VPS${NC}" >&2
+        echo -e "${YELLOW}   Run: dockup $REMOTE setup${NC}" >&2
         exit 1
     fi
 
