@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this on releases
-DOCKUP_VERSION="1.0.7"
+DOCKUP_VERSION="1.0.8"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -127,11 +127,30 @@ get_latest_version() {
     fi
     
     # Fetch from GitHub API (non-blocking, with timeout)
-    latest_version=$(curl -s --max-time 3 --connect-timeout 2 \
-        "https://api.github.com/repos/${DOCKUP_REPO}/releases/latest" 2>/dev/null | \
-        grep -o '"tag_name": "[^"]*"' | \
-        cut -d'"' -f4 | \
-        sed 's/^v//' || echo "")
+    # First try releases/latest endpoint
+    local api_response=$(curl -s --max-time 3 --connect-timeout 2 \
+        "https://api.github.com/repos/${DOCKUP_REPO}/releases/latest" 2>/dev/null)
+    
+    # Check if we got a valid response (not 404)
+    if echo "$api_response" | grep -q '"tag_name"'; then
+        latest_version=$(echo "$api_response" | \
+            grep -o '"tag_name": "[^"]*"' | \
+            cut -d'"' -f4 | \
+            sed 's/^v//')
+    elif echo "$api_response" | grep -q '"message".*"Not Found"'; then
+        # No releases found, try tags as fallback
+        local tags_response=$(curl -s --max-time 3 --connect-timeout 2 \
+            "https://api.github.com/repos/${DOCKUP_REPO}/tags" 2>/dev/null)
+        
+        if echo "$tags_response" | grep -q '"name"'; then
+            # Get the first (latest) tag
+            latest_version=$(echo "$tags_response" | \
+                grep -o '"name": "[^"]*"' | \
+                head -1 | \
+                cut -d'"' -f4 | \
+                sed 's/^v//')
+        fi
+    fi
     
     # If we got a version, cache it
     if [ -n "$latest_version" ]; then
