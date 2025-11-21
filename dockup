@@ -31,6 +31,20 @@ else
 fi
 BINARY_NAME="dockup-agent"
 
+# --- Helper: Convert HTTPS GitHub URL to SSH ---
+convert_to_ssh_url() {
+    local url="$1"
+    # Convert https://github.com/user/repo.git to git@github.com:user/repo.git
+    if echo "$url" | grep -q "^https://github.com/"; then
+        echo "$url" | sed 's|^https://github.com/|git@github.com:|' | sed 's|\.git$||' | sed 's|$|.git|'
+    elif echo "$url" | grep -q "^http://github.com/"; then
+        echo "$url" | sed 's|^http://github.com/|git@github.com:|' | sed 's|\.git$||' | sed 's|$|.git|'
+    else
+        # Already SSH or not GitHub, return as-is
+        echo "$url"
+    fi
+}
+
 # --- Helper: Embedded Server Installer ---
 # This generates the installer script dynamically so you don't need to manage two files.
 generate_installer_script() {
@@ -164,14 +178,24 @@ cmd_init() {
     echo ""
 
     # 2. Remote Provisioning
+    # Convert HTTPS URL to SSH for VPS cloning (VPS uses SSH deploy keys)
+    SSH_REPO_URL=$(convert_to_ssh_url "$REPO_URL")
+    
     echo -e "${BLUE}📦 Setting up on VPS...${NC}"
     ssh $REMOTE "
       if [ ! -d '/opt/dockup/apps/$APP_NAME' ]; then
         echo '>> Cloning repository...'
-        if ! git clone $REPO_URL /opt/dockup/apps/$APP_NAME 2>&1; then
-          echo 'ERROR: Failed to clone repository. Make sure:'
-          echo '  1. The Deploy Key is added to your GitHub repository'
-          echo '  2. The repository URL is correct: $REPO_URL'
+        if ! git clone $SSH_REPO_URL /opt/dockup/apps/$APP_NAME 2>&1; then
+          echo 'ERROR: Failed to clone repository.'
+          echo ''
+          echo 'The VPS uses SSH to clone repositories. Make sure:'
+          echo '  1. The SSH Deploy Key is added to your GitHub repository'
+          echo '     Get the key by running: ssh $REMOTE \"cat ~/.ssh/id_ed25519.pub\"'
+          echo '     Add it at: https://github.com/$(echo \"$REPO_URL\" | sed -E \"s|.*github.com[:/]([^/]+/[^/]+).*|\\1|\" | sed \"s|\\.git$||\")/settings/keys'
+          echo '  2. The repository URL is correct: $SSH_REPO_URL'
+          echo ''
+          echo 'If you need to see the SSH public key, run:'
+          echo '  ssh $REMOTE \"cat ~/.ssh/id_ed25519.pub\"'
           exit 1
         fi
       else
@@ -379,13 +403,23 @@ cmd_deploy() {
         # Run init logic but skip webhook setup (we'll do it at the end)
         SECRET=$(openssl rand -hex 20)
         
+        # Convert HTTPS URL to SSH for VPS cloning (VPS uses SSH deploy keys)
+        SSH_REPO_URL=$(convert_to_ssh_url "$REPO_URL")
+        
         ssh $REMOTE "
           if [ ! -d '/opt/dockup/apps/$APP_NAME' ]; then
             echo '   >> Cloning repository...'
-            if ! git clone $REPO_URL /opt/dockup/apps/$APP_NAME 2>&1; then
-              echo 'ERROR: Failed to clone repository. Make sure:'
-              echo '  1. The Deploy Key is added to your GitHub repository'
-              echo '  2. The repository URL is correct: $REPO_URL'
+            if ! git clone $SSH_REPO_URL /opt/dockup/apps/$APP_NAME 2>&1; then
+              echo 'ERROR: Failed to clone repository.'
+              echo ''
+              echo 'The VPS uses SSH to clone repositories. Make sure:'
+              echo '  1. The SSH Deploy Key is added to your GitHub repository'
+              echo '     Get the key by running: ssh $REMOTE \"cat ~/.ssh/id_ed25519.pub\"'
+              echo '     Add it at: https://github.com/$(echo \"$REPO_URL\" | sed -E \"s|.*github.com[:/]([^/]+/[^/]+).*|\\1|\" | sed \"s|\\.git$||\")/settings/keys'
+              echo '  2. The repository URL is correct: $SSH_REPO_URL'
+              echo ''
+              echo 'If you need to see the SSH public key, run:'
+              echo '  ssh $REMOTE \"cat ~/.ssh/id_ed25519.pub\"'
               exit 1
             fi
           else
