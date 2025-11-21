@@ -1,8 +1,11 @@
 #!/bin/bash
 # DockUp: The Zero-Bloat PaaS CLI
 # Usage: 
-#   ./dockup setup user@vps-ip   -> Run once to install Docker/Agent on VPS
-#   ./dockup init user@vps-ip    -> Run inside a git repo to deploy it
+#   ./dockup setup user@vps-ip      -> Run once to install Docker/Agent on VPS
+#   ./dockup init user@vps-ip       -> Run inside a git repo to deploy it
+#   ./dockup deploy user@vps-ip      -> Unified: setup + init + deploy
+#   ./dockup disconnect user@vps-ip  -> Unlink project (keeps app directory)
+#   ./dockup remove user@vps-ip      -> Delete project completely
 
 set -e
 GREEN='\033[0;32m'
@@ -456,32 +459,278 @@ cmd_deploy() {
     echo ""
 }
 
+# --- Command: DISCONNECT (Unlink project from DockUp) ---
+cmd_disconnect() {
+    if [ -z "$REMOTE" ]; then 
+        echo -e "${RED}Usage: ./dockup disconnect user@host [app-name]${NC}"
+        echo ""
+        echo "This command will:"
+        echo "  1. Remove GitHub webhook (if possible)"
+        echo "  2. Remove app from DockUp registry"
+        echo "  3. Keep app directory and containers running"
+        exit 1
+    fi
+
+    # Detect app name from git context or use provided argument
+    if [ -n "$3" ]; then
+        APP_NAME="$3"
+    elif git rev-parse --show-toplevel > /dev/null 2>&1; then
+        APP_NAME=$(basename `git rev-parse --show-toplevel`)
+    else
+        echo -e "${RED}❌ Error: Not a Git repository and no app name provided${NC}"
+        echo -e "${YELLOW}Usage: dockup disconnect user@host [app-name]${NC}"
+        echo -e "${YELLOW}Or run from inside your project's Git repository${NC}"
+        exit 1
+    fi
+
+    echo -e "${YELLOW}🔌 Disconnecting '$APP_NAME' from DockUp on $REMOTE...${NC}"
+    echo ""
+
+    # Check if app is registered
+    REGISTERED=$(ssh $REMOTE "jq -r '.\"$APP_NAME\" // empty' /etc/dockup/registry.json 2>/dev/null" || echo "")
+    
+    if [ -z "$REGISTERED" ] || [ "$REGISTERED" = "null" ]; then
+        echo -e "${YELLOW}⚠️  App '$APP_NAME' is not registered in DockUp${NC}"
+        exit 0
+    fi
+
+    # Get repo info for webhook removal
+    REPO_URL=$(ssh $REMOTE "jq -r '.\"$APP_NAME\".path' /etc/dockup/registry.json" 2>/dev/null)
+    if [ -n "$REPO_URL" ] && [ -d "$REPO_URL" ]; then
+        REPO_URL=$(ssh $REMOTE "cd $REPO_URL && git config --get remote.origin.url 2>/dev/null" || echo "")
+    fi
+
+    # Extract GitHub repo name for webhook removal
+    if echo "$REPO_URL" | grep -q "github.com"; then
+        REPO_FULL_NAME=$(echo "$REPO_URL" | sed -E 's|.*github\.com[:/]([^/]+/[^/]+)|\1|' | sed 's|\.git$||' | sed 's|/$||')
+    else
+        REPO_FULL_NAME=""
+    fi
+
+    # Step 1: Remove GitHub webhook
+    if [ -n "$REPO_FULL_NAME" ] && echo "$REPO_FULL_NAME" | grep -q '/'; then
+        echo -e "${BLUE}📋 Step 1: Removing GitHub webhook...${NC}"
+        if command -v gh &> /dev/null && gh auth status &> /dev/null; then
+            # List webhooks and find the one matching our VPS IP
+            VPS_IP="${REMOTE#*@}"
+            WEBHOOK_URL="http://${VPS_IP}:8080/webhook/github"
+            
+            # Get webhook ID
+            HOOK_ID=$(gh api "repos/$REPO_FULL_NAME/hooks" --jq ".[] | select(.config.url == \"$WEBHOOK_URL\") | .id" 2>/dev/null | head -n1)
+            
+            if [ -n "$HOOK_ID" ]; then
+                if gh api "repos/$REPO_FULL_NAME/hooks/$HOOK_ID" -X DELETE &> /dev/null; then
+                    echo -e "${GREEN}   ✓ Webhook removed from GitHub${NC}"
+                else
+                    echo -e "${YELLOW}   ⚠️  Could not remove webhook automatically${NC}"
+                    echo -e "${YELLOW}   Please remove it manually: https://github.com/$REPO_FULL_NAME/settings/hooks${NC}"
+                fi
+            else
+                echo -e "${YELLOW}   ℹ️  No matching webhook found (may have been removed already)${NC}"
+            fi
+        else
+            echo -e "${YELLOW}   ℹ️  GitHub CLI not available or not authenticated${NC}"
+            echo -e "${YELLOW}   Please remove webhook manually: https://github.com/$REPO_FULL_NAME/settings/hooks${NC}"
+        fi
+        echo ""
+    fi
+
+    # Step 2: Remove from registry
+    echo -e "${BLUE}📋 Step 2: Removing from DockUp registry...${NC}"
+    ssh $REMOTE "
+        tmp=\$(mktemp)
+        jq 'del(.\"$APP_NAME\")' /etc/dockup/registry.json > \$tmp && mv \$tmp /etc/dockup/registry.json
+        echo '   >> Reloading DockUp agent...'
+        curl -s -X POST http://localhost:8080/reload > /dev/null 2>&1 || systemctl restart dockup
+    " || {
+        echo -e "${RED}❌ Failed to remove from registry${NC}"
+        exit 1
+    }
+    echo -e "${GREEN}   ✓ Removed from registry${NC}"
+    echo ""
+
+    echo -e "${GREEN}✅ Disconnected '$APP_NAME' from DockUp${NC}"
+    echo -e "${YELLOW}ℹ️  App directory and containers are still running${NC}"
+    echo -e "${YELLOW}   Use 'dockup remove' to completely delete the app${NC}"
+    echo ""
+}
+
+# --- Command: REMOVE (Delete project completely) ---
+cmd_remove() {
+    if [ -z "$REMOTE" ]; then 
+        echo -e "${RED}Usage: ./dockup remove user@host [app-name]${NC}"
+        echo ""
+        echo "This command will:"
+        echo "  1. Stop and remove containers"
+        echo "  2. Remove GitHub webhook (if possible)"
+        echo "  3. Remove app from DockUp registry"
+        echo "  4. Delete app directory"
+        exit 1
+    fi
+
+    # Detect app name from git context or use provided argument
+    if [ -n "$3" ]; then
+        APP_NAME="$3"
+    elif git rev-parse --show-toplevel > /dev/null 2>&1; then
+        APP_NAME=$(basename `git rev-parse --show-toplevel`)
+    else
+        echo -e "${RED}❌ Error: Not a Git repository and no app name provided${NC}"
+        echo -e "${YELLOW}Usage: dockup remove user@host [app-name]${NC}"
+        echo -e "${YELLOW}Or run from inside your project's Git repository${NC}"
+        exit 1
+    fi
+
+    echo -e "${RED}🗑️  Removing '$APP_NAME' from DockUp on $REMOTE...${NC}"
+    echo ""
+    echo -e "${YELLOW}⚠️  This will:${NC}"
+    echo "  - Stop and remove all containers"
+    echo "  - Remove from DockUp registry"
+    echo "  - Delete app directory: /opt/dockup/apps/$APP_NAME"
+    echo "  - Remove GitHub webhook"
+    echo ""
+    read -p "Are you sure? (yes/no): " CONFIRM
+    
+    if [ "$CONFIRM" != "yes" ]; then
+        echo -e "${YELLOW}Cancelled${NC}"
+        exit 0
+    fi
+
+    # Check if app is registered
+    REGISTERED=$(ssh $REMOTE "jq -r '.\"$APP_NAME\" // empty' /etc/dockup/registry.json 2>/dev/null" || echo "")
+    
+    # Get compose file path
+    COMPOSE_FILE="docker-compose.yml"
+    if [ -n "$REGISTERED" ] && [ "$REGISTERED" != "null" ]; then
+        COMPOSE_FILE=$(ssh $REMOTE "jq -r '.\"$APP_NAME\".compose_file // \"docker-compose.yml\"' /etc/dockup/registry.json" 2>/dev/null || echo "docker-compose.yml")
+    fi
+
+    # Get repo info for webhook removal
+    APP_PATH=$(ssh $REMOTE "jq -r '.\"$APP_NAME\".path // \"/opt/dockup/apps/$APP_NAME\"' /etc/dockup/registry.json" 2>/dev/null || echo "/opt/dockup/apps/$APP_NAME")
+    REPO_URL=""
+    if ssh $REMOTE "[ -d \"$APP_PATH\" ]" 2>/dev/null; then
+        REPO_URL=$(ssh $REMOTE "cd $APP_PATH && git config --get remote.origin.url 2>/dev/null" || echo "")
+    fi
+
+    # Extract GitHub repo name for webhook removal
+    if echo "$REPO_URL" | grep -q "github.com"; then
+        REPO_FULL_NAME=$(echo "$REPO_URL" | sed -E 's|.*github\.com[:/]([^/]+/[^/]+)|\1|' | sed 's|\.git$||' | sed 's|/$||')
+    else
+        REPO_FULL_NAME=""
+    fi
+
+    # Step 1: Stop and remove containers
+    echo -e "${BLUE}📋 Step 1: Stopping containers...${NC}"
+    ssh $REMOTE "
+        if [ -d \"$APP_PATH\" ]; then
+            cd $APP_PATH
+            if [ -f \"$COMPOSE_FILE\" ]; then
+                docker compose -f $COMPOSE_FILE down -v 2>/dev/null || true
+                echo '   >> Containers stopped and removed'
+            else
+                echo '   >> No docker-compose.yml found, skipping container removal'
+            fi
+        else
+            echo '   >> App directory not found, skipping container removal'
+        fi
+    " || echo -e "${YELLOW}   ⚠️  Could not stop containers (may not exist)${NC}"
+    echo ""
+
+    # Step 2: Remove GitHub webhook
+    if [ -n "$REPO_FULL_NAME" ] && echo "$REPO_FULL_NAME" | grep -q '/'; then
+        echo -e "${BLUE}📋 Step 2: Removing GitHub webhook...${NC}"
+        if command -v gh &> /dev/null && gh auth status &> /dev/null; then
+            VPS_IP="${REMOTE#*@}"
+            WEBHOOK_URL="http://${VPS_IP}:8080/webhook/github"
+            
+            HOOK_ID=$(gh api "repos/$REPO_FULL_NAME/hooks" --jq ".[] | select(.config.url == \"$WEBHOOK_URL\") | .id" 2>/dev/null | head -n1)
+            
+            if [ -n "$HOOK_ID" ]; then
+                if gh api "repos/$REPO_FULL_NAME/hooks/$HOOK_ID" -X DELETE &> /dev/null; then
+                    echo -e "${GREEN}   ✓ Webhook removed from GitHub${NC}"
+                else
+                    echo -e "${YELLOW}   ⚠️  Could not remove webhook automatically${NC}"
+                fi
+            else
+                echo -e "${YELLOW}   ℹ️  No matching webhook found${NC}"
+            fi
+        else
+            echo -e "${YELLOW}   ℹ️  GitHub CLI not available, please remove webhook manually${NC}"
+        fi
+        echo ""
+    fi
+
+    # Step 3: Remove from registry
+    echo -e "${BLUE}📋 Step 3: Removing from DockUp registry...${NC}"
+    ssh $REMOTE "
+        tmp=\$(mktemp)
+        jq 'del(.\"$APP_NAME\")' /etc/dockup/registry.json > \$tmp && mv \$tmp /etc/dockup/registry.json
+        echo '   >> Reloading DockUp agent...'
+        curl -s -X POST http://localhost:8080/reload > /dev/null 2>&1 || systemctl restart dockup
+    " || {
+        echo -e "${YELLOW}   ⚠️  Could not remove from registry (may not exist)${NC}"
+    }
+    echo -e "${GREEN}   ✓ Removed from registry${NC}"
+    echo ""
+
+    # Step 4: Delete app directory
+    echo -e "${BLUE}📋 Step 4: Deleting app directory...${NC}"
+    ssh $REMOTE "
+        if [ -d \"$APP_PATH\" ]; then
+            rm -rf \"$APP_PATH\"
+            echo '   >> App directory deleted'
+        else
+            echo '   >> App directory not found (may have been deleted already)'
+        fi
+    " || {
+        echo -e "${YELLOW}   ⚠️  Could not delete app directory${NC}"
+    }
+    echo -e "${GREEN}   ✓ Directory removed${NC}"
+    echo ""
+
+    echo -e "${GREEN}✅ Completely removed '$APP_NAME' from DockUp${NC}"
+    echo ""
+}
+
 # --- Main Switch ---
 case "$1" in
-    setup)  REMOTE=$2; cmd_setup ;;
-    init)   REMOTE=$2; cmd_init ;;
-    deploy) REMOTE=$2; cmd_deploy "$3" ;;
-    *)      echo "Usage: dockup {setup|init|deploy} user@host [options]"
-            echo ""
-            echo "Commands:"
-            echo ""
-            echo -e "${GREEN}  deploy${NC}  - Unified command (RECOMMENDED)"
-            echo "     Automatically handles: setup + init + deploy"
-            echo "     Use when: You want to deploy your app in one command"
-            echo "     Example: dockup deploy user@vps-ip"
-            echo "              dockup deploy user@vps-ip --rebuild"
-            echo ""
-            echo -e "${YELLOW}  setup${NC}   - One-time VPS setup"
-            echo "     Installs DockUp agent on your VPS"
-            echo "     Use when: First time setting up a new VPS"
-            echo "     Example: dockup setup user@vps-ip"
-            echo ""
-            echo -e "${YELLOW}  init${NC}    - Register repository"
-            echo "     Registers your repo with DockUp (without deploying)"
-            echo "     Use when: You only want to register, not deploy immediately"
-            echo "     Example: dockup init user@vps-ip"
-            echo ""
-            echo -e "${BLUE}💡 Tip: Most users should use 'deploy' - it does everything!${NC}"
-            ;;
+    setup)      REMOTE=$2; cmd_setup ;;
+    init)       REMOTE=$2; cmd_init ;;
+    deploy)     REMOTE=$2; cmd_deploy "$3" ;;
+    disconnect) REMOTE=$2; cmd_disconnect ;;
+    remove)     REMOTE=$2; cmd_remove ;;
+    *)          echo "Usage: dockup {setup|init|deploy|disconnect|remove} user@host [options]"
+                echo ""
+                echo "Commands:"
+                echo ""
+                echo -e "${GREEN}  deploy${NC}     - Unified command (RECOMMENDED)"
+                echo "     Automatically handles: setup + init + deploy"
+                echo "     Use when: You want to deploy your app in one command"
+                echo "     Example: dockup deploy user@vps-ip"
+                echo "              dockup deploy user@vps-ip --rebuild"
+                echo ""
+                echo -e "${YELLOW}  setup${NC}      - One-time VPS setup"
+                echo "     Installs DockUp agent on your VPS"
+                echo "     Use when: First time setting up a new VPS"
+                echo "     Example: dockup setup user@vps-ip"
+                echo ""
+                echo -e "${YELLOW}  init${NC}       - Register repository"
+                echo "     Registers your repo with DockUp (without deploying)"
+                echo "     Use when: You only want to register, not deploy immediately"
+                echo "     Example: dockup init user@vps-ip"
+                echo ""
+                echo -e "${BLUE}  disconnect${NC}  - Unlink project from DockUp"
+                echo "     Removes webhook and registry entry, keeps app directory"
+                echo "     Use when: You want to stop auto-deployments but keep the app"
+                echo "     Example: dockup disconnect user@vps-ip"
+                echo "              dockup disconnect user@vps-ip my-app"
+                echo ""
+                echo -e "${RED}  remove${NC}      - Delete project completely"
+                echo "     Stops containers, removes webhook, deletes app directory"
+                echo "     Use when: You want to completely remove the app from VPS"
+                echo "     Example: dockup remove user@vps-ip"
+                echo "              dockup remove user@vps-ip my-app"
+                echo ""
+                echo -e "${BLUE}💡 Tip: Most users should use 'deploy' - it does everything!${NC}"
+                ;;
 esac
 

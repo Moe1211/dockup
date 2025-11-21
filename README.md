@@ -82,6 +82,17 @@ curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | ba
 - **Example:** `dockup init user@vps-ip`
 - **Note:** Usually not needed - `deploy` handles this automatically
 
+**`dockup disconnect`**
+- **Use when:** You want to stop auto-deployments but keep the app running
+- **What it does:** Removes GitHub webhook and registry entry, keeps app directory and containers
+- **Example:** `dockup disconnect user@vps-ip` (from git repo) or `dockup disconnect user@vps-ip my-app`
+
+**`dockup remove`**
+- **Use when:** You want to completely remove an app from your VPS
+- **What it does:** Stops containers, removes webhook, deletes app directory and registry entry
+- **Example:** `dockup remove user@vps-ip` (from git repo) or `dockup remove user@vps-ip my-app`
+- **Warning:** This permanently deletes the app directory and all its data
+
 ### 1. Initial VPS Setup (One-time per server)
 
 ```bash
@@ -166,6 +177,45 @@ DockUp works with any standard Docker Compose setup:
 - Projects with only `docker-compose.yml` using pre-built images
 - Projects with `docker-compose.yml` + `Dockerfile` (Compose will build automatically)
 - Projects with custom compose file names (use `compose_file` in registry)
+
+## Managing Apps
+
+### Disconnect an App
+
+Stop auto-deployments but keep the app running:
+
+```bash
+# From inside the project directory
+dockup disconnect user@vps-ip
+
+# Or specify app name
+dockup disconnect user@vps-ip my-app
+```
+
+This will:
+- Remove the GitHub webhook (if GitHub CLI is available)
+- Remove the app from DockUp registry
+- Keep the app directory and containers running
+
+### Remove an App Completely
+
+Permanently delete an app from your VPS:
+
+```bash
+# From inside the project directory
+dockup remove user@vps-ip
+
+# Or specify app name
+dockup remove user@vps-ip my-app
+```
+
+This will:
+- Stop and remove all containers
+- Remove the GitHub webhook
+- Remove the app from DockUp registry
+- Delete the app directory (`/opt/dockup/apps/my-app`)
+
+**Warning:** This permanently deletes all app data. You'll be prompted to confirm before deletion.
 
 ## Project Structure
 
