@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -81,6 +82,7 @@ func main() {
 	http.HandleFunc("/webhook/manual", handleManual)
 	http.HandleFunc("/reload", handleReload)
 	http.HandleFunc("/github/token-url", handleGitHubTokenURL)
+	http.HandleFunc("/github/create-webhook", handleCreateWebhook)
 
 	log.Printf("🚀 DockUp Agent v%s running on :%s, watching %d apps", Version, *port, len(registry))
 	if githubAppConfig != nil {
@@ -458,6 +460,137 @@ func handleGitHubTokenURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(tokenURL))
+}
+
+func handleCreateWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		Repo   string `json:"repo"`   // owner/repo format
+		URL    string `json:"url"`    // webhook URL
+		Secret string `json:"secret"` // webhook secret
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", 400)
+		return
+	}
+
+	if req.Repo == "" || req.URL == "" || req.Secret == "" {
+		http.Error(w, "Missing required fields: repo, url, secret", 400)
+		return
+	}
+
+	if githubAppConfig == nil {
+		http.Error(w, "GitHub App not configured", 503)
+		return
+	}
+
+	// Get installation token
+	token, err := getInstallationToken()
+	if err != nil {
+		log.Printf("❌ Failed to get installation token for webhook creation: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to get token: %v", err), 500)
+		return
+	}
+
+	// Create webhook via GitHub API
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/hooks", req.Repo)
+	
+	webhookConfig := map[string]interface{}{
+		"url":          req.URL,
+		"content_type": "json",
+		"secret":       req.Secret,
+		"insecure_ssl": "0",
+	}
+
+	payload := map[string]interface{}{
+		"name":   "web",
+		"active": true,
+		"events": []string{"push"},
+		"config": webhookConfig,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		http.Error(w, "Failed to encode payload", 500)
+		return
+	}
+
+	httpReq, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		http.Error(w, "Failed to create request", 500)
+		return
+	}
+
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("Accept", "application/vnd.github+json")
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		log.Printf("❌ Failed to create webhook: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to create webhook: %v", err), 500)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode == 201 {
+		var hookResp struct {
+			ID int `json:"id"`
+		}
+		if err := json.Unmarshal(body, &hookResp); err == nil {
+			log.Printf("✅ Webhook created for %s (ID: %d)", req.Repo, hookResp.ID)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(fmt.Sprintf(`{"id": %d, "status": "created"}`, hookResp.ID)))
+			return
+		}
+	}
+
+	// Check if webhook already exists (422 or 400 with specific message)
+	if resp.StatusCode == 422 || resp.StatusCode == 400 {
+		// Try to find existing webhook
+		listURL := fmt.Sprintf("https://api.github.com/repos/%s/hooks", req.Repo)
+		listReq, _ := http.NewRequest("GET", listURL, nil)
+		listReq.Header.Set("Authorization", "Bearer "+token)
+		listReq.Header.Set("Accept", "application/vnd.github+json")
+		listReq.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+		listResp, err := client.Do(listReq)
+		if err == nil {
+			defer listResp.Body.Close()
+			var hooks []struct {
+				ID     int `json:"id"`
+				Config struct {
+					URL string `json:"url"`
+				} `json:"config"`
+			}
+			if json.NewDecoder(listResp.Body).Decode(&hooks) == nil {
+				for _, hook := range hooks {
+					if hook.Config.URL == req.URL {
+						log.Printf("✅ Webhook already exists for %s (ID: %d)", req.Repo, hook.ID)
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(http.StatusOK)
+						w.Write([]byte(fmt.Sprintf(`{"id": %d, "status": "exists"}`, hook.ID)))
+						return
+					}
+				}
+			}
+		}
+	}
+
+	// Return error
+	log.Printf("❌ Failed to create webhook for %s: HTTP %d - %s", req.Repo, resp.StatusCode, string(body))
+	http.Error(w, fmt.Sprintf("GitHub API error (status %d): %s", resp.StatusCode, string(body)), resp.StatusCode)
 }
 
 // --- Helpers ---
