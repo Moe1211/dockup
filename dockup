@@ -12,7 +12,20 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 REMOTE=$2
-AGENT_SRC="main.go" # Assumes source is in the same folder, or adjust path
+# Try to find main.go in multiple locations:
+# 1. Same directory as script (local development)
+# 2. ~/.local/share/dockup/main.go (user install)
+# 3. /usr/local/share/dockup/main.go (system install)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/main.go" ]; then
+    AGENT_SRC="$SCRIPT_DIR/main.go"
+elif [ -f "$HOME/.local/share/dockup/main.go" ]; then
+    AGENT_SRC="$HOME/.local/share/dockup/main.go"
+elif [ -f "/usr/local/share/dockup/main.go" ]; then
+    AGENT_SRC="/usr/local/share/dockup/main.go"
+else
+    AGENT_SRC="main.go"  # Fallback: current directory
+fi
 BINARY_NAME="dockup-agent"
 
 # --- Helper: Embedded Server Installer ---
@@ -73,9 +86,17 @@ cmd_setup() {
 
     echo -e "${GREEN}🔨 Building Agent for Linux...${NC}"
     if [ -f "$AGENT_SRC" ]; then
-        env GOOS=linux GOARCH=amd64 go build -o $BINARY_NAME $AGENT_SRC
+        env GOOS=linux GOARCH=amd64 go build -o $BINARY_NAME "$AGENT_SRC"
     elif [ ! -f "$BINARY_NAME" ]; then
-        echo -e "${RED}Error: Could not find '$AGENT_SRC' or a compiled '$BINARY_NAME'.${NC}"
+        echo -e "${RED}Error: Could not find main.go${NC}"
+        echo -e "${YELLOW}Tried:${NC}"
+        echo -e "${YELLOW}  - $SCRIPT_DIR/main.go${NC}"
+        echo -e "${YELLOW}  - $HOME/.local/share/dockup/main.go${NC}"
+        echo -e "${YELLOW}  - /usr/local/share/dockup/main.go${NC}"
+        echo -e "${YELLOW}  - ./main.go${NC}"
+        echo ""
+        echo -e "${YELLOW}Install DockUp globally:${NC}"
+        echo -e "${BLUE}curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install-global.sh | bash${NC}"
         exit 1
     fi
 

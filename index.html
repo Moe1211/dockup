@@ -249,7 +249,46 @@
                 <h2>Quick Start</h2>
 
                 <div class="step">
-                    <h3><span class="step-number">1</span>Initial VPS Setup (One-time per server)</h3>
+                    <h3><span class="step-number">0</span>Install DockUp (One-time, optional but recommended)</h3>
+                    <p>Install DockUp as a global command so you can use it from any project:</p>
+                    <div class="code-block">
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        <code>curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install-global.sh | bash</code>
+                    </div>
+                    <div class="note">
+                        <strong>Note:</strong> This installs DockUp system-wide. After installation, you can use <code>dockup</code> from any directory, just like <code>git</code>.
+                    </div>
+                    <p>Or use the one-liner installer directly (no installation needed):</p>
+                    <div class="code-block">
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        <code>curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | bash -s -- deploy user@vps-ip</code>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <h3><span class="step-number">1</span>Deploy Your App</h3>
+                    <p>Navigate to your project and deploy:</p>
+                    <div class="code-block">
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        <code>cd my-app<br>dockup deploy user@vps-ip</code>
+                    </div>
+                    <div class="note">
+                        <strong>Note:</strong> If you didn't install globally, use the one-liner instead.
+                    </div>
+                    <p>This single command will:</p>
+                    <ul>
+                        <li>Check if DockUp is installed on VPS (setup if needed)</li>
+                        <li>Clone your repository on the VPS</li>
+                        <li>Register the app in DockUp</li>
+                        <li>Trigger an immediate build and deploy</li>
+                    </ul>
+                    <div class="success">
+                        <strong>✅ That's it!</strong> Your app is now deployed and will auto-update on every push.
+                    </div>
+                </div>
+
+                <div class="step">
+                    <h3><span class="step-number">1</span>Initial VPS Setup (One-time per server - if not using deploy)</h3>
                     <p>Run this command once when you first set up your VPS:</p>
                     <div class="code-block">
                         <button class="copy-btn" onclick="copyCode(this)">Copy</button>

@@ -20,14 +20,29 @@ A minimal, zero-dependency PaaS solution that automatically deploys your Docker 
 ### Prerequisites
 
 - A Linux VPS (Ubuntu/Debian recommended)
-- Go installed on your local machine (for building the agent, or use the one-liner installer)
+- Go installed on your local machine (for building the agent)
 - SSH access to your VPS
 - `jq` installed on VPS (auto-installed by setup)
 - `gh` CLI (optional, for automatic webhook setup)
 
 ### Installation Methods
 
-#### Option 1: One-Line Installer (Recommended)
+#### Option 1: Install DockUp Globally (Recommended)
+
+Install DockUp as a global command (like `git` or `supabase`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install-global.sh | bash
+```
+
+Then use `dockup` from anywhere:
+
+```bash
+cd my-project
+dockup deploy user@vps-ip
+```
+
+#### Option 2: One-Line Installer (Per-Project)
 
 **Initial VPS Setup:**
 ```bash
@@ -40,7 +55,7 @@ cd my-app
 curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | bash -s -- init user@vps-ip
 ```
 
-#### Option 2: Manual Installation
+#### Option 3: Manual Installation
 
 ### 1. Initial VPS Setup (One-time per server)
 
