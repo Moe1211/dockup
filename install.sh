@@ -14,8 +14,8 @@ NC='\033[0m'
 
 # Configuration - Update these URLs to point to your hosted files
 # You can override these with environment variables:
-#   DOCKUP_REPO_URL=https://your-domain.com curl -fsSL ... | bash
-DOCKUP_REPO_URL="${DOCKUP_REPO_URL:-https://raw.githubusercontent.com/yourusername/dockup/main}"
+#   DOCKUP_REPO_URL=https://raw.githubusercontent.com/Moe1211/dockup/main curl -fsSL ... | bash
+DOCKUP_REPO_URL="${DOCKUP_REPO_URL:-https://raw.githubusercontent.com/Moe1211/dockup/main}"
 DOCKUP_SCRIPT_URL="${DOCKUP_SCRIPT_URL:-$DOCKUP_REPO_URL/dockup}"
 MAIN_GO_URL="${MAIN_GO_URL:-$DOCKUP_REPO_URL/main.go}"
 
