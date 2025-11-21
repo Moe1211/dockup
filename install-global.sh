@@ -126,9 +126,9 @@ echo ""
 echo -e "${GREEN}✅ DockUp installed successfully!${NC}"
 echo ""
 echo -e "${GREEN}You can now use 'dockup' from anywhere:${NC}"
-echo "  dockup deploy user@vps-ip"
-echo "  dockup setup user@vps-ip"
-echo "  dockup init user@vps-ip"
+echo "  dockup user@vps-ip deploy"
+echo "  dockup user@vps-ip setup"
+echo "  dockup user@vps-ip init"
 echo ""
 
 # Test if dockup is available
