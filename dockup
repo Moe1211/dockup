@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this on releases
-DOCKUP_VERSION="1.0.8"
+DOCKUP_VERSION="1.0.9"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner

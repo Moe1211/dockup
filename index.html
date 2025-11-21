@@ -759,6 +759,185 @@ dockup remove user@vps-ip my-app</code>
 
         <div class="section">
             <div class="card">
+                <h2>Repository-Specific Configuration</h2>
+                
+                <h3>Default Structure (No Config File Required)</h3>
+                <p>By default, DockUp works with a simple repository structure. No configuration file is needed if you follow the standard setup:</p>
+                <div class="code-block">
+                    <div class="code-block-header">
+                        <span class="code-block-title">Default Repository Structure</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <div class="code-block-content">
+                        <code>my-app/
+├── docker-compose.yml    # Required: Docker Compose configuration
+├── Dockerfile            # Optional: For building custom images
+└── ...                   # Your application files</code>
+                    </div>
+                </div>
+                <p style="margin-top: 15px;">When no <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">config.dockup.yml</code> is found, DockUp will:</p>
+                <ul>
+                    <li>Look for <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">docker-compose.yml</code> in the repository root</li>
+                    <li>Use <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">docker compose build --pull</code> (builds from Dockerfile if present, or uses pre-built images)</li>
+                    <li>Use <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">docker compose up -d --remove-orphans</code> to start containers</li>
+                </ul>
+                <div class="success alert" style="margin-top: 20px;">
+                    <strong>✅ Works Out of the Box:</strong> If your repository has a <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">docker-compose.yml</code> file, DockUp will deploy it automatically without any additional configuration.
+                </div>
+
+                <h3>Optional: config.dockup.yml (Coming Soon)</h3>
+                <div class="note alert" style="margin-bottom: 25px;">
+                    <strong>🚧 Coming Soon:</strong> Repository-specific configuration via <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">config.dockup.yml</code> is planned for Phase 1. The schema below represents the proposed structure.
+                </div>
+                <p>For advanced customization, you can optionally add a <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">config.dockup.yml</code> file to your repository root. This file will be automatically detected and used during deployment, allowing you to customize build commands, hooks, environment variables, and more.</p>
+                
+                <h3>config.dockup.yml Schema</h3>
+                <div class="code-block">
+                    <div class="code-block-header">
+                        <span class="code-block-title">config.dockup.yml Schema</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <div class="code-block-content">
+                        <code># DockUp Configuration File
+# Place this file in your repository root
+
+# Docker Compose configuration
+compose:
+  file: "docker-compose.prod.yml"  # Optional, defaults to docker-compose.yml
+  build_args:                      # Build arguments for docker compose build
+    - "NODE_ENV=production"
+    - "API_URL=https://api.example.com"
+
+# Build hooks (optional)
+hooks:
+  pre_build:                       # Commands to run before docker compose build
+    - "npm install"
+    - "npm run build"
+  post_build:                      # Commands to run after docker compose build
+    - "npm run test"
+  pre_deploy:                      # Commands to run before docker compose up
+    - "echo 'Starting deployment...'"
+  post_deploy:                     # Commands to run after docker compose up
+    - "curl -X POST https://hooks.slack.com/..."
+
+# Environment variables (injected into containers)
+environment:
+  NODE_ENV: "production"
+  DATABASE_URL: "${DATABASE_URL}"  # Can reference VPS environment variables
+  API_KEY: "${API_KEY}"
+
+# Health checks
+health_check:
+  enabled: true
+  endpoint: "/health"
+  timeout: 30
+  interval: 60
+  retries: 3
+
+# Deployment strategy
+deployment:
+  strategy: "rolling"              # Options: rolling, blue-green, immediate
+  max_parallel: 2                 # For rolling deployments
+
+# Resource limits (per service)
+resources:
+  web:
+    memory: "512m"
+    cpus: "0.5"
+  db:
+    memory: "1g"
+    cpus: "1.0"
+
+# Notifications
+notifications:
+  webhooks:
+    - url: "https://hooks.slack.com/services/..."
+      on_success: true
+      on_failure: true
+    - url: "https://discord.com/api/webhooks/..."
+      on_failure: true
+
+# Rollback configuration
+rollback:
+  enabled: true
+  keep_releases: 5                # Number of previous releases to keep</code>
+                    </div>
+                </div>
+
+                <h3>Example: Simple Configuration</h3>
+                <div class="code-block">
+                    <div class="code-block-header">
+                        <span class="code-block-title">Simple Example</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <div class="code-block-content">
+                        <code># config.dockup.yml
+compose:
+  file: "docker-compose.prod.yml"
+
+environment:
+  NODE_ENV: "production"
+  PORT: "3000"
+
+health_check:
+  enabled: true
+  endpoint: "/health"</code>
+                    </div>
+                </div>
+
+                <h3>Example: Advanced Configuration</h3>
+                <div class="code-block">
+                    <div class="code-block-header">
+                        <span class="code-block-title">Advanced Example</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <div class="code-block-content">
+                        <code># config.dockup.yml
+compose:
+  file: "docker-compose.prod.yml"
+  build_args:
+    - "BUILD_ENV=production"
+    - "VERSION=${GIT_COMMIT}"
+
+hooks:
+  pre_build:
+    - "npm ci"
+    - "npm run build:prod"
+  post_deploy:
+    - "npm run migrate"
+    - "curl -X POST https://api.example.com/webhooks/deployed"
+
+environment:
+  NODE_ENV: "production"
+  DATABASE_URL: "${DATABASE_URL}"
+  REDIS_URL: "${REDIS_URL}"
+
+health_check:
+  enabled: true
+  endpoint: "/api/health"
+  timeout: 30
+  interval: 60
+
+deployment:
+  strategy: "rolling"
+  max_parallel: 1
+
+notifications:
+  webhooks:
+    - url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+      on_success: true
+      on_failure: true</code>
+                    </div>
+                </div>
+
+                <div class="note alert" style="margin-top: 25px;">
+                    <strong>📝 Note:</strong> The <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">config.dockup.yml</code> file is <strong>completely optional</strong>. If not present, DockUp will use the default behavior described above (expects <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">docker-compose.yml</code> and optionally a <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">Dockerfile</code>). Configuration in <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">/etc/dockup/registry.json</code> takes precedence for system-level settings (path, branch, secret, compose_file).
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="card">
                 <h2>Monitoring</h2>
                 <p>View agent logs in real-time:</p>
                 <div class="code-block">
