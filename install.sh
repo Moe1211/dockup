@@ -66,19 +66,24 @@ echo ""
 # Execute the command passed as arguments
 if [ $# -eq 0 ]; then
     echo -e "${YELLOW}Usage:${NC}"
-    echo "  curl -fsSL https://your-domain.com/install.sh | bash -s -- setup user@vps-ip"
-    echo "  curl -fsSL https://your-domain.com/install.sh | bash -s -- init user@vps-ip"
+    echo "  curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | bash -s -- deploy user@vps-ip"
+    echo ""
+    echo "  # Or use individual commands:"
+    echo "  curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | bash -s -- setup user@vps-ip"
+    echo "  curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | bash -s -- init user@vps-ip"
+    echo ""
+    echo -e "${GREEN}Recommended: Use 'deploy' - it handles everything automatically!${NC}"
     exit 1
 fi
 
 # For 'setup' command, we need main.go in the current directory
-# For 'init' command, we need to be in the user's project directory
+# For 'init' and 'deploy' commands, we need to be in the user's project directory
 if [ "$1" = "setup" ]; then
     # Stay in temp dir for setup (needs main.go to build)
     cd "$TMP_DIR"
     exec ./dockup "$@"
 else
-    # Change back to original directory for init (needs git context)
+    # Change back to original directory for init/deploy (needs git context)
     if [ ! -d "$ORIGINAL_DIR" ]; then
         echo -e "${RED}❌ Error: Original directory no longer exists: $ORIGINAL_DIR${NC}"
         exit 1
@@ -88,10 +93,12 @@ else
         exit 1
     }
     # Verify we're in a git repo (for better error message)
-    if [ "$1" = "init" ] && ! git rev-parse --show-toplevel > /dev/null 2>&1; then
-        echo -e "${RED}❌ Error: Not a Git repository in: $(pwd)${NC}"
-        echo -e "${YELLOW}Make sure you're running this command from inside your project's Git repository.${NC}"
-        exit 1
+    if [ "$1" = "init" ] || [ "$1" = "deploy" ]; then
+        if ! git rev-parse --show-toplevel > /dev/null 2>&1; then
+            echo -e "${RED}❌ Error: Not a Git repository in: $(pwd)${NC}"
+            echo -e "${YELLOW}Make sure you're running this command from inside your project's Git repository.${NC}"
+            exit 1
+        fi
     fi
     exec "$TMP_DIR/dockup" "$@"
 fi

@@ -63,7 +63,13 @@ EOF
 
 # --- Command: SETUP (Provision VPS) ---
 cmd_setup() {
-    if [ -z "$REMOTE" ]; then echo -e "${RED}Usage: ./dockup setup user@host${NC}"; exit 1; fi
+    # REMOTE can be passed as argument or use global REMOTE
+    SETUP_REMOTE="${1:-$REMOTE}"
+    
+    if [ -z "$SETUP_REMOTE" ]; then 
+        echo -e "${RED}Usage: ./dockup setup user@host${NC}"; 
+        exit 1
+    fi
 
     echo -e "${GREEN}🔨 Building Agent for Linux...${NC}"
     if [ -f "$AGENT_SRC" ]; then
@@ -73,12 +79,12 @@ cmd_setup() {
         exit 1
     fi
 
-    echo -e "${GREEN}🚀 Uploading Agent and Installer to $REMOTE...${NC}"
+    echo -e "${GREEN}🚀 Uploading Agent and Installer to $SETUP_REMOTE...${NC}"
     generate_installer_script # Create temp script
-    scp -q $BINARY_NAME _remote_install.sh $REMOTE:~/
+    scp -q $BINARY_NAME _remote_install.sh $SETUP_REMOTE:~/
 
     echo -e "${GREEN}⚙️  Running Remote Installer...${NC}"
-    ssh $REMOTE "chmod +x _remote_install.sh && ./_remote_install.sh"
+    ssh $SETUP_REMOTE "chmod +x _remote_install.sh && ./_remote_install.sh"
     
     # Cleanup
     rm _remote_install.sh $BINARY_NAME
@@ -94,9 +100,9 @@ cmd_setup() {
     echo -e "${YELLOW}2. Make sure your VPS firewall allows port 8080:${NC}"
     echo "   The agent listens on port 8080 for webhooks"
     echo ""
-    echo -e "${YELLOW}3. Run 'init' command from your project directory:${NC}"
+    echo -e "${YELLOW}3. Run 'deploy' command from your project directory:${NC}"
     echo "   cd /path/to/your-project"
-    echo "   ./dockup init $REMOTE"
+    echo "   ./dockup deploy $SETUP_REMOTE"
     echo ""
 }
 
@@ -232,10 +238,172 @@ cmd_init() {
     echo ""
 }
 
+# --- Command: DEPLOY (Unified - Setup + Init + Deploy) ---
+cmd_deploy() {
+    if [ -z "$REMOTE" ]; then 
+        echo -e "${RED}Usage: ./dockup deploy user@host [--rebuild]${NC}"
+        echo ""
+        echo "This command will:"
+        echo "  1. Check if DockUp is installed on VPS (setup if needed)"
+        echo "  2. Register your repo if not already registered"
+        echo "  3. Trigger a build and deploy"
+        exit 1
+    fi
+
+    # Check if we're in a git repo
+    if ! git rev-parse --show-toplevel > /dev/null 2>&1; then
+        echo -e "${RED}❌ Error: Not a Git repository${NC}"
+        echo -e "${YELLOW}The 'deploy' command must be run from inside your project's Git repository.${NC}"
+        exit 1
+    fi
+
+    APP_NAME=$(basename `git rev-parse --show-toplevel`)
+    REPO_URL=$(git config --get remote.origin.url)
+    
+    if [ -z "$REPO_URL" ]; then
+        echo -e "${RED}❌ Error: No Git remote found${NC}"
+        echo -e "${YELLOW}Please add a remote origin to your repository:${NC}"
+        echo -e "${YELLOW}  git remote add origin <your-repo-url>${NC}"
+        exit 1
+    fi
+
+    BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    REBUILD_FLAG="$3"  # Check for --rebuild flag
+
+    echo -e "${GREEN}🚀 Deploying '$APP_NAME' to $REMOTE...${NC}"
+    echo ""
+
+    # Step 1: Check if DockUp is installed on VPS
+    echo -e "${BLUE}📋 Step 1: Checking DockUp installation...${NC}"
+    if ! ssh $REMOTE "systemctl is-active --quiet dockup 2>/dev/null" && \
+       ! ssh $REMOTE "test -f /usr/local/bin/dockup-agent" 2>/dev/null; then
+        echo -e "${YELLOW}   DockUp not found. Setting up...${NC}"
+        # Call setup with the remote as argument
+        cmd_setup "$REMOTE"
+        echo ""
+    else
+        echo -e "${GREEN}   ✓ DockUp is installed${NC}"
+    fi
+
+    # Step 2: Check if repo is registered, register if not
+    echo -e "${BLUE}📋 Step 2: Checking repository registration...${NC}"
+    REGISTERED=$(ssh $REMOTE "jq -r '.\"$APP_NAME\" // empty' /etc/dockup/registry.json 2>/dev/null" || echo "")
+    
+    if [ -z "$REGISTERED" ] || [ "$REGISTERED" = "null" ]; then
+        echo -e "${YELLOW}   Repository not registered. Registering...${NC}"
+        # Run init logic but skip webhook setup (we'll do it at the end)
+        SECRET=$(openssl rand -hex 20)
+        
+        ssh $REMOTE "
+          if [ ! -d '/opt/dockup/apps/$APP_NAME' ]; then
+            echo '   >> Cloning repository...'
+            if ! git clone $REPO_URL /opt/dockup/apps/$APP_NAME 2>&1; then
+              echo 'ERROR: Failed to clone repository. Make sure:'
+              echo '  1. The Deploy Key is added to your GitHub repository'
+              echo '  2. The repository URL is correct: $REPO_URL'
+              exit 1
+            fi
+          else
+            echo '   >> Repository already exists, skipping clone...'
+          fi
+          
+          echo '   >> Registering app in DockUp...'
+          tmp=\$(mktemp)
+          jq '.\"$APP_NAME\" = {path: \"/opt/dockup/apps/$APP_NAME\", branch: \"$BRANCH\", secret: \"$SECRET\"}' /etc/dockup/registry.json > \$tmp && mv \$tmp /etc/dockup/registry.json
+          
+          echo '   >> Restarting DockUp agent...'
+          systemctl restart dockup
+        " || {
+            echo -e "${RED}❌ Failed to register repository${NC}"
+            exit 1
+        }
+        echo -e "${GREEN}   ✓ Repository registered${NC}"
+        
+        # Get the secret for webhook setup
+        SECRET=$(ssh $REMOTE "jq -r '.\"$APP_NAME\".secret' /etc/dockup/registry.json")
+    else
+        echo -e "${GREEN}   ✓ Repository already registered${NC}"
+        SECRET=$(ssh $REMOTE "jq -r '.\"$APP_NAME\".secret' /etc/dockup/registry.json")
+    fi
+
+    # Step 3: Trigger build and deploy
+    echo -e "${BLUE}📋 Step 3: Building and deploying...${NC}"
+    VPS_IP="${REMOTE#*@}"
+    
+    if [ "$REBUILD_FLAG" = "--rebuild" ]; then
+        echo -e "${YELLOW}   Force rebuild requested...${NC}"
+    fi
+
+    # Trigger manual deploy via API
+    echo -e "${BLUE}   Triggering deployment...${NC}"
+    DEPLOY_RESPONSE=$(curl -s -w "\n%{http_code}" \
+        -H "Authorization: Bearer $SECRET" \
+        "http://${VPS_IP}:8080/webhook/manual?app=${APP_NAME}" 2>/dev/null)
+    
+    HTTP_CODE=$(echo "$DEPLOY_RESPONSE" | tail -n1)
+    RESPONSE_BODY=$(echo "$DEPLOY_RESPONSE" | head -n-1)
+    
+    if [ "$HTTP_CODE" = "200" ]; then
+        echo -e "${GREEN}   ✓ Deployment triggered successfully${NC}"
+        echo ""
+        echo -e "${GREEN}✅ Deployment in progress!${NC}"
+        echo ""
+        echo -e "${YELLOW}💡 Monitor deployment logs:${NC}"
+        echo "   ssh $REMOTE 'journalctl -u dockup -f'"
+    else
+        echo -e "${YELLOW}   ⚠️  Could not trigger via API (HTTP $HTTP_CODE)${NC}"
+        echo -e "${YELLOW}   Deployment will happen on next git push${NC}"
+    fi
+
+    # Step 4: Webhook setup reminder (only if not already set up)
+    echo ""
+    REPO_FULL_NAME=$(echo "$REPO_URL" | sed -E 's|.*github\.com[:/]([^/]+/[^/]+?)(\.git)?/?$|\1|' | sed 's|\.git$||')
+    WEBHOOK_URL="http://${VPS_IP}:8080/webhook/github"
+    
+    if [ -n "$REPO_FULL_NAME" ] && echo "$REPO_FULL_NAME" | grep -q '/'; then
+        echo -e "${YELLOW}📋 Final Step: Add GitHub Webhook (if not already added):${NC}"
+        echo "   https://github.com/$REPO_FULL_NAME/settings/hooks"
+        echo ""
+        echo -e "   ${BLUE}Payload URL:${NC}    $WEBHOOK_URL"
+        echo -e "   ${BLUE}Content type:${NC}   application/json"
+        echo -e "   ${BLUE}Secret:${NC}         $SECRET"
+        echo -e "   ${BLUE}Events:${NC}         Just the push event"
+        echo ""
+        
+        # Try automatic webhook setup
+        if command -v gh &> /dev/null && gh auth status &> /dev/null; then
+            if gh api "repos/$REPO_FULL_NAME/hooks" \
+                -X POST \
+                -f name=web \
+                -f active=true \
+                -f "config[url]=$WEBHOOK_URL" \
+                -f "config[content_type]=json" \
+                -f "config[secret]=$SECRET" \
+                -f "events[]=push" &> /dev/null; then
+                echo -e "${GREEN}✅ Webhook added automatically!${NC}"
+            fi
+        fi
+    fi
+
+    echo -e "${GREEN}🎉 Deploy complete! Future pushes to '$BRANCH' will auto-deploy.${NC}"
+    echo ""
+}
+
 # --- Main Switch ---
 case "$1" in
-    setup) cmd_setup ;;
-    init)  cmd_init ;;
-    *)     echo "Usage: ./dockup {setup|init} user@host" ;;
+    setup)  REMOTE=$2; cmd_setup ;;
+    init)   REMOTE=$2; cmd_init ;;
+    deploy) REMOTE=$2; cmd_deploy ;;
+    *)      echo "Usage: ./dockup {setup|init|deploy} user@host [options]"
+            echo ""
+            echo "Commands:"
+            echo "  setup   - One-time VPS setup (installs DockUp)"
+            echo "  init    - Register repository on VPS"
+            echo "  deploy  - Unified command: setup + init + deploy (recommended)"
+            echo ""
+            echo "Examples:"
+            echo "  ./dockup deploy user@vps-ip"
+            echo "  ./dockup deploy user@vps-ip --rebuild"
+            ;;
 esac
 
