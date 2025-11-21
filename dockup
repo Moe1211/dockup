@@ -187,7 +187,13 @@ cmd_init() {
     
     # Extract repo name from various GitHub URL formats
     # Handles: git@github.com:user/repo.git, https://github.com/user/repo.git, etc.
-    REPO_FULL_NAME=$(echo "$REPO_URL" | sed -E 's|.*github\.com[:/]([^/]+/[^/]+?)(\.git)?/?$|\1|' | sed 's|\.git$||')
+    # Extract repo name from GitHub URL (handles both SSH and HTTPS formats)
+    # Use a more portable approach that works on both macOS and Linux
+    if echo "$REPO_URL" | grep -q "github.com"; then
+        REPO_FULL_NAME=$(echo "$REPO_URL" | sed -E 's|.*github\.com[:/]([^/]+/[^/]+)|\1|' | sed 's|\.git$||' | sed 's|/$||')
+    else
+        REPO_FULL_NAME=""
+    fi
     
     echo ""
     echo -e "${GREEN}✅ App registered successfully!${NC}"
@@ -357,32 +363,51 @@ cmd_deploy() {
         echo -e "${YELLOW}   Force rebuild requested...${NC}"
     fi
 
-    # Trigger manual deploy via API
-    echo -e "${BLUE}   Triggering deployment...${NC}"
-    DEPLOY_RESPONSE=$(curl -s -w "\n%{http_code}" \
-        -H "Authorization: Bearer $SECRET" \
-        "http://${VPS_IP}:8080/webhook/manual?app=${APP_NAME}" 2>/dev/null)
-    
-    # Extract HTTP code (last line) and response body (all but last line)
-    # Use sed for portability (head -n-1 doesn't work on macOS)
-    HTTP_CODE=$(echo "$DEPLOY_RESPONSE" | tail -n1)
-    RESPONSE_BODY=$(echo "$DEPLOY_RESPONSE" | sed '$d')
-    
-    if [ "$HTTP_CODE" = "200" ]; then
-        echo -e "${GREEN}   ✓ Deployment triggered successfully${NC}"
-        echo ""
-        echo -e "${GREEN}✅ Deployment in progress!${NC}"
-        echo ""
-        echo -e "${YELLOW}💡 Monitor deployment logs:${NC}"
-        echo "   ssh $REMOTE 'journalctl -u dockup -f'"
-    else
-        echo -e "${YELLOW}   ⚠️  Could not trigger via API (HTTP $HTTP_CODE)${NC}"
+    # Verify app is registered and get secret
+    if [ -z "$SECRET" ] || [ "$SECRET" = "null" ]; then
+        echo -e "${YELLOW}   ⚠️  Could not retrieve secret for app '$APP_NAME'${NC}"
         echo -e "${YELLOW}   Deployment will happen on next git push${NC}"
+    else
+        # Trigger manual deploy via API
+        echo -e "${BLUE}   Triggering deployment...${NC}"
+        DEPLOY_RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer $SECRET" \
+            "http://${VPS_IP}:8080/webhook/manual?app=${APP_NAME}" 2>/dev/null)
+        
+        # Extract HTTP code (last line) and response body (all but last line)
+        # Use sed for portability (head -n-1 doesn't work on macOS)
+        HTTP_CODE=$(echo "$DEPLOY_RESPONSE" | tail -n1)
+        RESPONSE_BODY=$(echo "$DEPLOY_RESPONSE" | sed '$d')
+        
+        if [ "$HTTP_CODE" = "200" ]; then
+            echo -e "${GREEN}   ✓ Deployment triggered successfully${NC}"
+            echo ""
+            echo -e "${GREEN}✅ Deployment in progress!${NC}"
+            echo ""
+            echo -e "${YELLOW}💡 Monitor deployment logs:${NC}"
+            echo "   ssh $REMOTE 'journalctl -u dockup -f'"
+        elif [ "$HTTP_CODE" = "404" ]; then
+            echo -e "${YELLOW}   ⚠️  App '$APP_NAME' not found in DockUp registry${NC}"
+            echo -e "${YELLOW}   This might mean the registry needs to be reloaded${NC}"
+            echo -e "${YELLOW}   Deployment will happen on next git push${NC}"
+        elif [ "$HTTP_CODE" = "401" ]; then
+            echo -e "${YELLOW}   ⚠️  Authentication failed (HTTP 401)${NC}"
+            echo -e "${YELLOW}   Deployment will happen on next git push${NC}"
+        else
+            echo -e "${YELLOW}   ⚠️  Could not trigger via API (HTTP $HTTP_CODE)${NC}"
+            echo -e "${YELLOW}   Deployment will happen on next git push${NC}"
+        fi
     fi
 
     # Step 4: Webhook setup reminder (only if not already set up)
     echo ""
-    REPO_FULL_NAME=$(echo "$REPO_URL" | sed -E 's|.*github\.com[:/]([^/]+/[^/]+?)(\.git)?/?$|\1|' | sed 's|\.git$||')
+    # Extract repo name from GitHub URL (handles both SSH and HTTPS formats)
+    # Use a more portable approach that works on both macOS and Linux
+    if echo "$REPO_URL" | grep -q "github.com"; then
+        REPO_FULL_NAME=$(echo "$REPO_URL" | sed -E 's|.*github\.com[:/]([^/]+/[^/]+)|\1|' | sed 's|\.git$||' | sed 's|/$||')
+    else
+        REPO_FULL_NAME=""
+    fi
     WEBHOOK_URL="http://${VPS_IP}:8080/webhook/github"
     
     if [ -n "$REPO_FULL_NAME" ] && echo "$REPO_FULL_NAME" | grep -q '/'; then
