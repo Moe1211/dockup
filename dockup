@@ -31,18 +31,12 @@ else
 fi
 BINARY_NAME="dockup-agent"
 
-# --- Helper: Convert HTTPS GitHub URL to SSH ---
-convert_to_ssh_url() {
-    local url="$1"
-    # Convert https://github.com/user/repo.git to git@github.com:user/repo.git
-    if echo "$url" | grep -q "^https://github.com/"; then
-        echo "$url" | sed 's|^https://github.com/|git@github.com:|' | sed 's|\.git$||' | sed 's|$|.git|'
-    elif echo "$url" | grep -q "^http://github.com/"; then
-        echo "$url" | sed 's|^http://github.com/|git@github.com:|' | sed 's|\.git$||' | sed 's|$|.git|'
-    else
-        # Already SSH or not GitHub, return as-is
-        echo "$url"
-    fi
+# --- Helper: Get GitHub App installation token from VPS ---
+get_github_token() {
+    local remote="$1"
+    # This will be called from the VPS side via the agent
+    # For now, we'll handle token generation in the Go agent
+    echo ""
 }
 
 # --- Helper: Embedded Server Installer ---
@@ -87,12 +81,8 @@ sleep 2
 systemctl daemon-reload
 systemctl enable --now dockup
 
-echo ">> Generating SSH Key for GitHub..."
-if [ ! -f ~/.ssh/id_ed25519 ]; then ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -q; fi
-echo "--------------------------------------------------"
-echo "IMPORTANT: Add this Deploy Key to your GitHub Repo:"
-cat ~/.ssh/id_ed25519.pub
-echo "--------------------------------------------------"
+echo ">> GitHub App configuration required"
+echo "   Run 'dockup configure-github-app user@vps-ip' to set up GitHub App credentials"
 EOF
 }
 
@@ -136,9 +126,9 @@ cmd_setup() {
     echo ""
     echo -e "${YELLOW}📋 Important Next Steps:${NC}"
     echo ""
-    echo -e "${YELLOW}1. Add the SSH Deploy Key to your GitHub repositories:${NC}"
-    echo "   The public key was displayed above. Copy it and add it to:"
-    echo "   https://github.com/YOUR_USERNAME/YOUR_REPO/settings/keys"
+    echo -e "${YELLOW}1. Configure GitHub App credentials:${NC}"
+    echo "   Run: dockup configure-github-app $SETUP_REMOTE"
+    echo "   See GITHUB_APP_SETUP.md for detailed instructions"
     echo ""
     echo -e "${YELLOW}2. Make sure your VPS firewall allows port 8080:${NC}"
     echo "   The agent listens on port 8080 for webhooks"
@@ -178,24 +168,43 @@ cmd_init() {
     echo ""
 
     # 2. Remote Provisioning
-    # Convert HTTPS URL to SSH for VPS cloning (VPS uses SSH deploy keys)
-    SSH_REPO_URL=$(convert_to_ssh_url "$REPO_URL")
-    
+    # Check if GitHub App is configured
     echo -e "${BLUE}📦 Setting up on VPS...${NC}"
+    GITHUB_APP_CONFIGURED=$(ssh $REMOTE "test -f /etc/dockup/github-app.json && echo 'yes' || echo 'no'" 2>/dev/null || echo "no")
+    
+    if [ "$GITHUB_APP_CONFIGURED" != "yes" ]; then
+        echo -e "${RED}❌ GitHub App not configured${NC}"
+        echo ""
+        echo -e "${YELLOW}Please configure GitHub App credentials first:${NC}"
+        echo "  dockup configure-github-app $REMOTE"
+        echo ""
+        echo -e "${YELLOW}See GITHUB_APP_SETUP.md for detailed instructions.${NC}"
+        exit 1
+    fi
+    
     ssh $REMOTE "
       if [ ! -d '/opt/dockup/apps/$APP_NAME' ]; then
         echo '>> Cloning repository...'
-        if ! git clone $SSH_REPO_URL /opt/dockup/apps/$APP_NAME 2>&1; then
+        # Try to get token URL from agent, fallback to direct URL
+        CLONE_URL=\"$REPO_URL\"
+        if [ -f /etc/dockup/github-app.json ]; then
+          # Try to get token URL from agent (if running)
+          TOKEN_URL=\$(curl -s \"http://localhost:8080/github/token-url?repo=$REPO_URL\" 2>/dev/null || echo \"\")
+          if [ -n \"\$TOKEN_URL\" ] && [ \"\${TOKEN_URL:0:5}\" != \"Failed\" ]; then
+            CLONE_URL=\"\$TOKEN_URL\"
+          fi
+        fi
+        if ! git clone \"\$CLONE_URL\" /opt/dockup/apps/$APP_NAME 2>&1; then
           echo 'ERROR: Failed to clone repository.'
           echo ''
-          echo 'The VPS uses SSH to clone repositories. Make sure:'
-          echo '  1. The SSH Deploy Key is added to your GitHub repository'
-          echo '     Get the key by running: ssh $REMOTE \"cat ~/.ssh/id_ed25519.pub\"'
-          echo '     Add it at: https://github.com/$(echo \"$REPO_URL\" | sed -E \"s|.*github.com[:/]([^/]+/[^/]+).*|\\1|\" | sed \"s|\\.git$||\")/settings/keys'
-          echo '  2. The repository URL is correct: $SSH_REPO_URL'
+          echo 'Make sure:'
+          echo '  1. GitHub App is configured: dockup configure-github-app $REMOTE'
+          echo '  2. GitHub App is installed on the repository'
+          echo '     Go to: https://github.com/$(echo \"$REPO_URL\" | sed -E \"s|.*github.com[:/]([^/]+/[^/]+).*|\\1|\" | sed \"s|\\.git$||\")/settings/installations'
+          echo '  3. The repository URL is correct: $REPO_URL'
+          echo '  4. DockUp agent is running: systemctl status dockup'
           echo ''
-          echo 'If you need to see the SSH public key, run:'
-          echo '  ssh $REMOTE \"cat ~/.ssh/id_ed25519.pub\"'
+          echo 'See GITHUB_APP_SETUP.md for setup instructions.'
           exit 1
         fi
       else
@@ -234,17 +243,17 @@ cmd_init() {
     echo ""
     
     if [ -n "$REPO_FULL_NAME" ] && echo "$REPO_FULL_NAME" | grep -q '/'; then
-        echo -e "${YELLOW}1. Add GitHub Deploy Key (if not already done):${NC}"
-        echo "   https://github.com/$REPO_FULL_NAME/settings/keys"
-        echo "   Add the SSH key shown during 'setup' command"
+        echo -e "${YELLOW}1. Ensure GitHub App is installed on repository:${NC}"
+        echo "   https://github.com/$REPO_FULL_NAME/settings/installations"
+        echo "   Make sure your GitHub App is installed and has access"
         echo ""
         echo -e "${YELLOW}2. Add GitHub Webhook:${NC}"
         echo "   https://github.com/$REPO_FULL_NAME/settings/hooks"
         echo "   Click 'Add webhook' and enter:"
     else
-        echo -e "${YELLOW}1. Add GitHub Deploy Key (if not already done):${NC}"
-        echo "   Go to your repository Settings → Deploy keys"
-        echo "   Add the SSH key shown during 'setup' command"
+        echo -e "${YELLOW}1. Ensure GitHub App is installed on repository:${NC}"
+        echo "   Go to your repository Settings → GitHub Apps"
+        echo "   Make sure your GitHub App is installed and has access"
         echo ""
         echo -e "${YELLOW}2. Add GitHub Webhook:${NC}"
         echo "   Go to your repository Settings → Webhooks"
@@ -403,23 +412,38 @@ cmd_deploy() {
         # Run init logic but skip webhook setup (we'll do it at the end)
         SECRET=$(openssl rand -hex 20)
         
-        # Convert HTTPS URL to SSH for VPS cloning (VPS uses SSH deploy keys)
-        SSH_REPO_URL=$(convert_to_ssh_url "$REPO_URL")
+        # Check if GitHub App is configured
+        GITHUB_APP_CONFIGURED=$(ssh $REMOTE "test -f /etc/dockup/github-app.json && echo 'yes' || echo 'no'" 2>/dev/null || echo "no")
+        
+        if [ "$GITHUB_APP_CONFIGURED" != "yes" ]; then
+            echo -e "${RED}   ❌ GitHub App not configured${NC}"
+            echo -e "${YELLOW}   Please run: dockup configure-github-app $REMOTE${NC}"
+            exit 1
+        fi
         
         ssh $REMOTE "
           if [ ! -d '/opt/dockup/apps/$APP_NAME' ]; then
             echo '   >> Cloning repository...'
-            if ! git clone $SSH_REPO_URL /opt/dockup/apps/$APP_NAME 2>&1; then
+            # Try to get token URL from agent, fallback to direct URL
+            CLONE_URL=\"$REPO_URL\"
+            if [ -f /etc/dockup/github-app.json ]; then
+              # Try to get token URL from agent (if running)
+              TOKEN_URL=\$(curl -s \"http://localhost:8080/github/token-url?repo=$REPO_URL\" 2>/dev/null || echo \"\")
+              if [ -n \"\$TOKEN_URL\" ] && [ \"\${TOKEN_URL:0:5}\" != \"Failed\" ]; then
+                CLONE_URL=\"\$TOKEN_URL\"
+              fi
+            fi
+            if ! git clone \"\$CLONE_URL\" /opt/dockup/apps/$APP_NAME 2>&1; then
               echo 'ERROR: Failed to clone repository.'
               echo ''
-              echo 'The VPS uses SSH to clone repositories. Make sure:'
-              echo '  1. The SSH Deploy Key is added to your GitHub repository'
-              echo '     Get the key by running: ssh $REMOTE \"cat ~/.ssh/id_ed25519.pub\"'
-              echo '     Add it at: https://github.com/$(echo \"$REPO_URL\" | sed -E \"s|.*github.com[:/]([^/]+/[^/]+).*|\\1|\" | sed \"s|\\.git$||\")/settings/keys'
-              echo '  2. The repository URL is correct: $SSH_REPO_URL'
+              echo 'Make sure:'
+              echo '  1. GitHub App is configured: dockup configure-github-app $REMOTE'
+              echo '  2. GitHub App is installed on the repository'
+              echo '     Go to: https://github.com/$(echo \"$REPO_URL\" | sed -E \"s|.*github.com[:/]([^/]+/[^/]+).*|\\1|\" | sed \"s|\\.git$||\")/settings/installations'
+              echo '  3. The repository URL is correct: $REPO_URL'
+              echo '  4. DockUp agent is running: systemctl status dockup'
               echo ''
-              echo 'If you need to see the SSH public key, run:'
-              echo '  ssh $REMOTE \"cat ~/.ssh/id_ed25519.pub\"'
+              echo 'See GITHUB_APP_SETUP.md for setup instructions.'
               exit 1
             fi
           else
@@ -698,6 +722,142 @@ cmd_disconnect() {
     echo ""
 }
 
+# --- Command: CONFIGURE GITHUB APP ---
+cmd_configure_github_app() {
+    # Parse arguments - $@ contains remaining args after REMOTE
+    APP_ID=""
+    INSTALLATION_ID=""
+    PRIVATE_KEY=""
+    
+    ARGS=("$@")
+    i=0
+    while [ $i -lt ${#ARGS[@]} ]; do
+        case "${ARGS[$i]}" in
+            --app-id)
+                APP_ID="${ARGS[$((i+1))]}"
+                i=$((i+2))
+                ;;
+            --installation-id)
+                INSTALLATION_ID="${ARGS[$((i+1))]}"
+                i=$((i+2))
+                ;;
+            --private-key)
+                PRIVATE_KEY="${ARGS[$((i+1))]}"
+                i=$((i+2))
+                ;;
+            *)
+                i=$((i+1))
+                ;;
+        esac
+    done
+
+    if [ -z "$REMOTE" ]; then 
+        echo -e "${RED}Usage: ./dockup configure-github-app user@host [--app-id ID] [--installation-id ID] [--private-key KEY]${NC}"
+        echo ""
+        echo "This command configures GitHub App credentials on your VPS."
+        echo "You can provide values via flags or be prompted interactively."
+        echo ""
+        echo "Options:"
+        echo "  --app-id ID           GitHub App ID"
+        echo "  --installation-id ID GitHub App Installation ID"
+        echo "  --private-key KEY    Private key content (or path to .pem file)"
+        echo ""
+        echo "Example:"
+        echo "  dockup configure-github-app user@vps-ip"
+        echo "  dockup configure-github-app user@vps-ip --app-id 123456 --installation-id 789012 --private-key \"\$(cat key.pem)\""
+        exit 1
+    fi
+
+    echo -e "${GREEN}🔧 Configuring GitHub App on $REMOTE...${NC}"
+    echo ""
+
+    # Prompt for missing values
+    if [ -z "$APP_ID" ]; then
+        read -p "Enter GitHub App ID: " APP_ID
+        if [ -z "$APP_ID" ]; then
+            echo -e "${RED}❌ App ID is required${NC}"
+            exit 1
+        fi
+    fi
+
+    if [ -z "$INSTALLATION_ID" ]; then
+        read -p "Enter Installation ID: " INSTALLATION_ID
+        if [ -z "$INSTALLATION_ID" ]; then
+            echo -e "${RED}❌ Installation ID is required${NC}"
+            exit 1
+        fi
+    fi
+
+    if [ -z "$PRIVATE_KEY" ]; then
+        echo "Enter private key (paste the entire .pem file content, including BEGIN/END lines):"
+        echo "Press Enter after pasting, then Ctrl+D to finish:"
+        PRIVATE_KEY=$(cat)
+        if [ -z "$PRIVATE_KEY" ]; then
+            echo -e "${RED}❌ Private key is required${NC}"
+            exit 1
+        fi
+    else
+        # Check if it's a file path
+        if [ -f "$PRIVATE_KEY" ]; then
+            PRIVATE_KEY=$(cat "$PRIVATE_KEY")
+        fi
+    fi
+
+    # Validate private key format
+    if ! echo "$PRIVATE_KEY" | grep -q "BEGIN.*PRIVATE KEY"; then
+        echo -e "${YELLOW}⚠️  Warning: Private key doesn't appear to have BEGIN/END markers${NC}"
+        echo -e "${YELLOW}   Make sure you're pasting the complete key including headers${NC}"
+        read -p "Continue anyway? (y/n): " CONTINUE
+        if [ "$CONTINUE" != "y" ] && [ "$CONTINUE" != "Y" ]; then
+            exit 1
+        fi
+    fi
+
+    # Create JSON content
+    JSON_CONTENT=$(cat <<EOF
+{
+  "app_id": "$APP_ID",
+  "installation_id": "$INSTALLATION_ID",
+  "private_key": $(echo "$PRIVATE_KEY" | jq -Rs .)
+}
+EOF
+)
+
+    # Upload and save on VPS
+    echo -e "${BLUE}📦 Saving GitHub App credentials...${NC}"
+    ssh $REMOTE "
+        mkdir -p /etc/dockup
+        cat > /tmp/github-app.json <<'JSONEOF'
+$JSON_CONTENT
+JSONEOF
+        mv /tmp/github-app.json /etc/dockup/github-app.json
+        chmod 600 /etc/dockup/github-app.json
+        echo '   >> Credentials saved to /etc/dockup/github-app.json'
+    " || {
+        echo -e "${RED}❌ Failed to save credentials${NC}"
+        exit 1
+    }
+
+    # Verify it was saved correctly
+    echo -e "${BLUE}✓ Verifying configuration...${NC}"
+    VERIFIED=$(ssh $REMOTE "jq -r '.app_id, .installation_id' /etc/dockup/github-app.json 2>/dev/null" || echo "")
+    
+    if [ -n "$VERIFIED" ]; then
+        echo -e "${GREEN}✅ GitHub App configured successfully!${NC}"
+        echo ""
+        echo -e "${YELLOW}Configuration saved:${NC}"
+        echo "  App ID: $APP_ID"
+        echo "  Installation ID: $INSTALLATION_ID"
+        echo "  Location: /etc/dockup/github-app.json"
+        echo ""
+        echo -e "${GREEN}You can now deploy repositories where the GitHub App is installed.${NC}"
+        echo ""
+    else
+        echo -e "${RED}❌ Failed to verify configuration${NC}"
+        exit 1
+    fi
+}
+
 # --- Command: REMOVE (Delete project completely) ---
 cmd_remove() {
     if [ -z "$REMOTE" ]; then 
@@ -841,7 +1001,8 @@ case "$1" in
     deploy)     REMOTE=$2; cmd_deploy "$3" ;;
     disconnect) REMOTE=$2; cmd_disconnect ;;
     remove)     REMOTE=$2; cmd_remove ;;
-    *)          echo "Usage: dockup {setup|init|deploy|disconnect|remove} user@host [options]"
+    configure-github-app) REMOTE=$2; shift; shift; cmd_configure_github_app "$@" ;;
+    *)          echo "Usage: dockup {setup|init|deploy|disconnect|remove|configure-github-app} user@host [options]"
                 echo ""
                 echo "Commands:"
                 echo ""
@@ -872,6 +1033,11 @@ case "$1" in
                 echo "     Use when: You want to completely remove the app from VPS"
                 echo "     Example: dockup remove user@vps-ip"
                 echo "              dockup remove user@vps-ip my-app"
+                echo ""
+                echo -e "${BLUE}  configure-github-app${NC}  - Configure GitHub App credentials"
+                echo "     Configures GitHub App for repository access"
+                echo "     Use when: First time setup or updating credentials"
+                echo "     Example: dockup configure-github-app user@vps-ip"
                 echo ""
                 echo -e "${BLUE}💡 Tip: Most users should use 'deploy' - it does everything!${NC}"
                 ;;

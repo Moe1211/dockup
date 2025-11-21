@@ -24,6 +24,7 @@ A minimal, zero-dependency PaaS solution that automatically deploys your Docker 
 - SSH access to your VPS
 - `jq` installed on VPS (auto-installed by setup)
 - `gh` CLI (optional, for automatic webhook setup)
+- **GitHub App** - See [GITHUB_APP_SETUP.md](GITHUB_APP_SETUP.md) for setup instructions
 
 ### Installation Methods
 
@@ -93,7 +94,30 @@ curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/main/install.sh | ba
 - **Example:** `dockup remove user@vps-ip` (from git repo) or `dockup remove user@vps-ip my-app`
 - **Warning:** This permanently deletes the app directory and all its data
 
-### 1. Initial VPS Setup (One-time per server)
+**`dockup configure-github-app`**
+- **Use when:** First time setup or updating GitHub App credentials
+- **What it does:** Configures GitHub App credentials on your VPS for repository access
+- **Example:** `dockup configure-github-app user@vps-ip`
+- **Note:** Required before deploying repositories. See [GITHUB_APP_SETUP.md](GITHUB_APP_SETUP.md)
+
+### 1. Set Up GitHub App (One-time)
+
+Before deploying, you need to create and configure a GitHub App:
+
+1. **Create a GitHub App** - Follow the guide in [GITHUB_APP_SETUP.md](GITHUB_APP_SETUP.md)
+2. **Install the app** on your repositories or organization
+3. **Configure DockUp** with your GitHub App credentials:
+
+```bash
+dockup configure-github-app user@vps-ip
+```
+
+You'll need:
+- App ID (from GitHub App settings)
+- Installation ID (from installation URL)
+- Private key (the `.pem` file downloaded from GitHub)
+
+### 2. Initial VPS Setup (One-time per server)
 
 ```bash
 ./dockup setup user@vps-ip
@@ -104,11 +128,10 @@ This will:
 - Install Docker and dependencies
 - Build and upload the agent binary
 - Configure systemd service
-- Generate SSH key for GitHub
 
-**Important**: After setup, add the displayed SSH public key to your GitHub repository as a Deploy Key.
+**Important**: After setup, configure your GitHub App credentials (see step 1 above).
 
-### 2. Initialize Your App (Per repository)
+### 3. Initialize Your App (Per repository)
 
 Navigate to your project directory and run:
 
@@ -124,7 +147,7 @@ This will:
 - Generate a webhook secret
 - Add GitHub webhook (if `gh` CLI is installed)
 
-### 3. Deploy
+### 4. Deploy
 
 Just push to your configured branch:
 
@@ -224,11 +247,12 @@ dockup/
 ├── main.go           # Go agent source code
 ├── dockup            # CLI script
 ├── install.sh        # Bootstrap installer (one-liner)
-├── index.html        # Documentation page for hosting
-├── setup-domain.sh   # Helper script to configure domain
-├── HOSTING.md        # Hosting instructions
-├── README.md         # This file
-└── .gitignore        # Build artifacts
+├── index.html           # Documentation page for hosting
+├── setup-domain.sh      # Helper script to configure domain
+├── HOSTING.md           # Hosting instructions
+├── GITHUB_APP_SETUP.md  # GitHub App setup guide
+├── README.md            # This file
+└── .gitignore           # Build artifacts
 ```
 
 ## Monitoring
@@ -299,7 +323,8 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed troubleshooting guide.
 
 - The agent validates all GitHub webhooks using HMAC-SHA256
 - Manual deployments require Bearer token authentication
-- SSH keys should be added as Deploy Keys (read-only) unless you need write access
+- GitHub App uses short-lived tokens (1 hour) that are automatically rotated
+- Private keys are stored securely on the VPS at `/etc/dockup/github-app.json` with restricted permissions (600)
 - The agent runs as root (required for Docker operations)
 
 ## Troubleshooting
@@ -316,7 +341,9 @@ ssh user@vps-ip "journalctl -u dockup -n 50"
 1. Check that the repository name in GitHub matches the key in `registry.json`
 2. Verify the branch name matches
 3. Ensure Docker Compose file exists in the repository
-4. Check that SSH key is added to GitHub as a Deploy Key
+4. Verify GitHub App is configured: `ssh user@vps-ip "test -f /etc/dockup/github-app.json && echo 'configured'"`
+5. Check that GitHub App is installed on the repository
+6. See [GITHUB_APP_SETUP.md](GITHUB_APP_SETUP.md) for GitHub App troubleshooting
 
 ### Webhook not triggering
 
