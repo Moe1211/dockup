@@ -1,6 +1,7 @@
 #!/bin/bash
 # Post-commit hook script for DockUp
 # Automatically creates a git tag when DOCKUP_VERSION is updated
+# Also pushes the commit and tags to the remote repository
 
 set -e
 
@@ -55,6 +56,33 @@ echo -e "${BLUE}📦 Creating git tag $TAG_NAME...${NC}"
 git tag -a "$TAG_NAME" -m "$TAG_MSG" "$LAST_COMMIT"
 
 echo -e "${GREEN}✅ Tag $TAG_NAME created successfully${NC}"
-echo -e "${YELLOW}💡 To push the tag, run: git push origin $TAG_NAME${NC}"
-echo -e "${YELLOW}   Or push all tags: git push --tags${NC}"
+
+# Get current branch name
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+REMOTE_NAME="origin"
+
+# Check if remote exists
+if ! git remote get-url "$REMOTE_NAME" >/dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️  Remote '$REMOTE_NAME' not found, skipping push${NC}"
+    echo -e "${YELLOW}💡 To push manually, run: git push origin $CURRENT_BRANCH --tags${NC}"
+    exit 0
+fi
+
+# Push commit and tags
+echo -e "${BLUE}🚀 Pushing to $REMOTE_NAME/$CURRENT_BRANCH with tags...${NC}"
+PUSH_OUTPUT=$(git push "$REMOTE_NAME" "$CURRENT_BRANCH" --tags 2>&1)
+PUSH_EXIT_CODE=$?
+
+if [ $PUSH_EXIT_CODE -eq 0 ]; then
+    echo -e "${GREEN}✅ Successfully pushed commit and tag $TAG_NAME to $REMOTE_NAME${NC}"
+else
+    echo -e "${YELLOW}⚠️  Failed to push automatically${NC}"
+    # Show error message if available
+    if [ -n "$PUSH_OUTPUT" ]; then
+        echo -e "${YELLOW}   Error: $(echo "$PUSH_OUTPUT" | head -n1)${NC}"
+    fi
+    echo -e "${YELLOW}💡 To push manually, run: git push $REMOTE_NAME $CURRENT_BRANCH --tags${NC}"
+    # Don't fail the commit if push fails
+    exit 0
+fi
 

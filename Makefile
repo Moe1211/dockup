@@ -37,24 +37,36 @@ check: ## Run all checks (format, lint, test)
 install-hooks: ## Install git hooks (pre-commit and post-commit)
 	@echo "📦 Installing git hooks..."
 	@if command -v pre-commit > /dev/null 2>&1; then \
+		echo "📦 Using pre-commit framework for pre-commit hooks..."; \
 		pre-commit install; \
+		echo "✅ Pre-commit hooks installed via framework"; \
+		echo ""; \
+		echo "ℹ️  Note: Post-commit hooks are not managed by pre-commit framework"; \
+		echo "   Installing post-commit hook separately..."; \
 	else \
-		echo "⚠️  pre-commit not installed. Installing git hooks manually..."; \
+		echo "⚠️  pre-commit framework not installed. Installing hooks manually..."; \
 		cp scripts/pre-commit-checks.sh .git/hooks/pre-commit && \
 		chmod +x .git/hooks/pre-commit && \
-		echo "✅ Pre-commit hook installed"; \
+		echo "✅ Pre-commit hook installed manually"; \
 	fi
 	@if [ -f "scripts/post-commit-tag.sh" ]; then \
-		cp scripts/post-commit-tag.sh .git/hooks/post-commit-tag.sh 2>/dev/null || true; \
-		cp .git/hooks/post-commit .git/hooks/post-commit.bak 2>/dev/null || true; \
-		echo '#!/bin/bash' > .git/hooks/post-commit && \
-		echo 'set -e' >> .git/hooks/post-commit && \
-		echo 'PROJECT_ROOT="$$(git rev-parse --show-toplevel)"' >> .git/hooks/post-commit && \
-		echo 'if [ -f "$$PROJECT_ROOT/scripts/post-commit-tag.sh" ]; then' >> .git/hooks/post-commit && \
-		echo '  exec "$$PROJECT_ROOT/scripts/post-commit-tag.sh"' >> .git/hooks/post-commit && \
-		echo 'fi' >> .git/hooks/post-commit && \
-		chmod +x .git/hooks/post-commit && \
-		echo "✅ Post-commit hook installed"; \
+		if [ -f ".git/hooks/post-commit" ] && grep -q "post-commit-tag.sh" .git/hooks/post-commit 2>/dev/null; then \
+			echo "ℹ️  Post-commit hook already installed, skipping"; \
+		else \
+			if [ -f ".git/hooks/post-commit" ]; then \
+				cp .git/hooks/post-commit .git/hooks/post-commit.bak 2>/dev/null || true; \
+				echo "⚠️  Backed up existing post-commit hook to .git/hooks/post-commit.bak"; \
+			fi; \
+			cp scripts/post-commit-tag.sh .git/hooks/post-commit-tag.sh 2>/dev/null || true; \
+			echo '#!/bin/bash' > .git/hooks/post-commit && \
+			echo 'set -e' >> .git/hooks/post-commit && \
+			echo 'PROJECT_ROOT="$$(git rev-parse --show-toplevel)"' >> .git/hooks/post-commit && \
+			echo 'if [ -f "$$PROJECT_ROOT/scripts/post-commit-tag.sh" ]; then' >> .git/hooks/post-commit && \
+			echo '  exec "$$PROJECT_ROOT/scripts/post-commit-tag.sh"' >> .git/hooks/post-commit && \
+			echo 'fi' >> .git/hooks/post-commit && \
+			chmod +x .git/hooks/post-commit && \
+			echo "✅ Post-commit hook installed"; \
+		fi; \
 	fi
 	@echo "✅ All hooks installed"
 

@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.14"
+DOCKUP_VERSION="1.0.15"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner

@@ -69,11 +69,9 @@ This script runs automatically via the post-commit git hook. To run manually:
 ./scripts/post-commit-tag.sh
 ```
 
-**Note:** The tag is created locally. To push it to the remote:
+**Note:** The script automatically pushes the commit and tags to the remote repository (`origin`). If the push fails (e.g., no network, authentication issues), it will show a warning but won't fail the commit. You can manually push later if needed:
 ```bash
-git push origin v1.0.13
-# Or push all tags:
-git push --tags
+git push origin main --tags
 ```
 
 ## Integration
