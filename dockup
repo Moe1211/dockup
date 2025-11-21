@@ -1,0 +1,136 @@
+#!/bin/bash
+# DockUp: The Zero-Bloat PaaS CLI
+# Usage: 
+#   ./dockup setup user@vps-ip   -> Run once to install Docker/Agent on VPS
+#   ./dockup init user@vps-ip    -> Run inside a git repo to deploy it
+
+set -e
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+REMOTE=$2
+AGENT_SRC="main.go" # Assumes source is in the same folder, or adjust path
+BINARY_NAME="dockup-agent"
+
+# --- Helper: Embedded Server Installer ---
+# This generates the installer script dynamically so you don't need to manage two files.
+generate_installer_script() {
+cat << 'EOF' > _remote_install.sh
+#!/bin/bash
+set -e
+echo ">> Installing Dependencies..."
+apt-get update -qq && apt-get install -y -qq git jq curl
+
+if ! command -v docker &> /dev/null; then curl -fsSL https://get.docker.com | sh; fi
+
+echo ">> Setting up Directories..."
+mkdir -p /opt/dockup/apps /etc/dockup
+if [ ! -f /etc/dockup/registry.json ]; then echo "{}" > /etc/dockup/registry.json; fi
+
+echo ">> Installing Agent..."
+mv dockup-agent /usr/local/bin/
+chmod +x /usr/local/bin/dockup-agent
+
+echo ">> Configuring Systemd..."
+cat <<EOT > /etc/systemd/system/dockup.service
+[Unit]
+Description=DockUp Agent
+After=network.target docker.service
+
+[Service]
+ExecStart=/usr/local/bin/dockup-agent -port 8080 -config /etc/dockup/registry.json
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOT
+
+systemctl daemon-reload
+systemctl enable --now dockup
+
+echo ">> Generating SSH Key for GitHub..."
+if [ ! -f ~/.ssh/id_ed25519 ]; then ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -q; fi
+echo "--------------------------------------------------"
+echo "IMPORTANT: Add this Deploy Key to your GitHub Repo:"
+cat ~/.ssh/id_ed25519.pub
+echo "--------------------------------------------------"
+EOF
+}
+
+# --- Command: SETUP (Provision VPS) ---
+cmd_setup() {
+    if [ -z "$REMOTE" ]; then echo -e "${RED}Usage: ./dockup setup user@host${NC}"; exit 1; fi
+
+    echo -e "${GREEN}🔨 Building Agent for Linux...${NC}"
+    if [ -f "$AGENT_SRC" ]; then
+        env GOOS=linux GOARCH=amd64 go build -o $BINARY_NAME $AGENT_SRC
+    elif [ ! -f "$BINARY_NAME" ]; then
+        echo -e "${RED}Error: Could not find '$AGENT_SRC' or a compiled '$BINARY_NAME'.${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}🚀 Uploading Agent and Installer to $REMOTE...${NC}"
+    generate_installer_script # Create temp script
+    scp -q $BINARY_NAME _remote_install.sh $REMOTE:~/
+
+    echo -e "${GREEN}⚙️  Running Remote Installer...${NC}"
+    ssh $REMOTE "chmod +x _remote_install.sh && ./_remote_install.sh"
+    
+    # Cleanup
+    rm _remote_install.sh $BINARY_NAME
+    echo -e "${GREEN}✅ VPS Setup Complete!${NC}"
+}
+
+# --- Command: INIT (Register Repo) ---
+cmd_init() {
+    if [ -z "$REMOTE" ]; then echo -e "${RED}Usage: ./dockup init user@host${NC}"; exit 1; fi
+
+    # 1. Context Detection
+    APP_NAME=$(basename `git rev-parse --show-toplevel`)
+    REPO_URL=$(git config --get remote.origin.url)
+    BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    SECRET=$(openssl rand -hex 20)
+
+    echo -e "${GREEN}🚀 Initializing '$APP_NAME' on $REMOTE...${NC}"
+
+    # 2. Remote Provisioning
+    ssh $REMOTE "
+      if [ ! -d '/opt/dockup/apps/$APP_NAME' ]; then
+        echo '>> Cloning repo... (Ensure Deploy Key is added to GitHub!)'
+        git clone $REPO_URL /opt/dockup/apps/$APP_NAME
+      fi
+      
+      echo '>> Updating Registry...'
+      tmp=\$(mktemp)
+      jq '.\"$APP_NAME\" = {path: \"/opt/dockup/apps/$APP_NAME\", branch: \"$BRANCH\", secret: \"$SECRET\"}' /etc/dockup/registry.json > \$tmp && mv \$tmp /etc/dockup/registry.json
+      
+      echo '>> Reloading Agent...'
+      systemctl restart dockup
+    "
+
+    # 3. GitHub Webhook Setup
+    WEBHOOK_URL="http://${REMOTE#*@}:8080/webhook/github" # Extracts IP from user@ip
+    
+    if command -v gh &> /dev/null; then
+        echo -e "${GREEN}🔗 Adding GitHub Webhook via 'gh' CLI...${NC}"
+        gh repo-webhook add --url "$WEBHOOK_URL" --events push --secret "$SECRET" --content-type json
+        echo -e "${GREEN}✅ Setup Complete! Push to '$BRANCH' to deploy.${NC}"
+    else
+        echo -e "${YELLOW}⚠️  'gh' CLI not installed.${NC}"
+        echo "Please add this Webhook manually:"
+        echo "  URL:    $WEBHOOK_URL"
+        echo "  Secret: $SECRET"
+        echo "  Events: Push"
+    fi
+}
+
+# --- Main Switch ---
+case "$1" in
+    setup) cmd_setup ;;
+    init)  cmd_init ;;
+    *)     echo "Usage: ./dockup {setup|init} user@host" ;;
+esac
+

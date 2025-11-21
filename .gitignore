@@ -1,0 +1,20 @@
+# Build artifacts
+dockup-agent
+_remote_install.sh
+
+# Go build cache
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
