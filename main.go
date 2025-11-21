@@ -22,6 +22,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// Version is set during build via -ldflags
+var Version = "dev"
+
 // Config structure matching registry.json
 type AppConfig struct {
 	Path    string `json:"path"`
@@ -57,7 +60,13 @@ var (
 func main() {
 	port := flag.String("port", "8080", "Port to listen on")
 	configFile := flag.String("config", "/etc/dockup/registry.json", "Path to registry.json")
+	showVersion := flag.Bool("version", false, "Show version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("DockUp Agent v%s\n", Version)
+		os.Exit(0)
+	}
 
 	// Load Config
 	if err := loadConfig(*configFile); err != nil {
@@ -73,7 +82,7 @@ func main() {
 	http.HandleFunc("/reload", handleReload)
 	http.HandleFunc("/github/token-url", handleGitHubTokenURL)
 
-	log.Printf("🚀 DockUp Agent running on :%s, watching %d apps", *port, len(registry))
+	log.Printf("🚀 DockUp Agent v%s running on :%s, watching %d apps", Version, *port, len(registry))
 	if githubAppConfig != nil {
 		log.Printf("✅ GitHub App configured (App ID: %s)", githubAppConfig.AppID)
 	} else {

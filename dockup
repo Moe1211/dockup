@@ -14,6 +14,14 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Version - update this on releases
+DOCKUP_VERSION="1.0.0"
+
+# Print version banner
+print_version() {
+    echo -e "${BLUE}DockUp v${DOCKUP_VERSION}${NC}"
+}
+
 REMOTE=$2
 # Try to find main.go in multiple locations:
 # 1. Same directory as script (local development)
@@ -96,6 +104,8 @@ cmd_setup() {
         exit 1
     fi
 
+    print_version
+    echo ""
     echo -e "${GREEN}🔨 Building Agent for Linux...${NC}"
     if [ -f "$AGENT_SRC" ]; then
         # Build in the directory containing main.go to ensure go.mod is found
@@ -170,6 +180,9 @@ cmd_setup() {
 # --- Command: INIT (Register Repo) ---
 cmd_init() {
     if [ -z "$REMOTE" ]; then echo -e "${RED}Usage: ./dockup init user@host${NC}"; exit 1; fi
+
+    print_version
+    echo ""
 
     # 1. Context Detection - Must be run from a Git repository
     if ! git rev-parse --show-toplevel > /dev/null 2>&1; then
@@ -422,6 +435,8 @@ cmd_deploy() {
 
     BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
+    print_version
+    echo ""
     echo -e "${GREEN}🚀 Deploying '$APP_NAME' to $REMOTE...${NC}"
     echo ""
 
@@ -693,6 +708,8 @@ cmd_disconnect() {
         exit 1
     fi
 
+    print_version
+    echo ""
     echo -e "${YELLOW}🔌 Disconnecting '$APP_NAME' from DockUp on $REMOTE...${NC}"
     echo ""
 
@@ -813,6 +830,8 @@ cmd_configure_github_app() {
         exit 1
     fi
 
+    print_version
+    echo ""
     echo -e "${GREEN}🔧 Configuring DockUp GitHub App on $REMOTE...${NC}"
     echo ""
     echo -e "${BLUE}Using App ID: $APP_ID (DockUp GitHub App)${NC}"
@@ -1033,6 +1052,8 @@ cmd_remove() {
         exit 1
     fi
 
+    print_version
+    echo ""
     echo -e "${RED}🗑️  Removing '$APP_NAME' from DockUp on $REMOTE...${NC}"
     echo ""
     echo -e "${YELLOW}⚠️  This will:${NC}"
@@ -1152,7 +1173,8 @@ case "$1" in
     disconnect) REMOTE=$2; cmd_disconnect ;;
     remove)     REMOTE=$2; cmd_remove ;;
     configure-github-app) REMOTE=$2; shift; shift; cmd_configure_github_app "$@" ;;
-    *)          echo "Usage: dockup {setup|init|deploy|disconnect|remove|configure-github-app} user@host [options]"
+    version|--version|-v) print_version; exit 0 ;;
+    *)          echo "Usage: dockup {setup|init|deploy|disconnect|remove|configure-github-app|version} user@host [options]"
                 echo ""
                 echo "Commands:"
                 echo ""
