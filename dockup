@@ -102,6 +102,11 @@ cmd_setup() {
         AGENT_DIR=$(dirname "$AGENT_SRC")
         AGENT_FILE=$(basename "$AGENT_SRC")
         if [ -f "$AGENT_DIR/go.mod" ]; then
+            # Ensure go.sum exists or download dependencies
+            if [ ! -f "$AGENT_DIR/go.sum" ]; then
+                echo -e "${BLUE}   Downloading Go dependencies...${NC}"
+                (cd "$AGENT_DIR" && go mod download 2>/dev/null || go mod tidy 2>/dev/null || true)
+            fi
             # Build from the directory containing go.mod
             (cd "$AGENT_DIR" && env GOOS=linux GOARCH=amd64 go build -o "$(pwd)/$BINARY_NAME" "$AGENT_FILE")
             # Move binary to current directory if built elsewhere
@@ -111,6 +116,11 @@ cmd_setup() {
         else
             # Fallback: build from current directory if go.mod is here
             if [ -f "./go.mod" ]; then
+                # Ensure go.sum exists
+                if [ ! -f "./go.sum" ]; then
+                    echo -e "${BLUE}   Downloading Go dependencies...${NC}"
+                    go mod download 2>/dev/null || go mod tidy 2>/dev/null || true
+                fi
                 env GOOS=linux GOARCH=amd64 go build -o $BINARY_NAME "$AGENT_SRC"
             else
                 echo -e "${YELLOW}⚠️  go.mod not found, building without module support...${NC}"
@@ -757,8 +767,10 @@ cmd_disconnect() {
 
 # --- Command: CONFIGURE GITHUB APP ---
 cmd_configure_github_app() {
+    # Hardcoded App ID for DockUp
+    APP_ID="2330335"
+    
     # Parse arguments - $@ contains remaining args after REMOTE
-    APP_ID=""
     INSTALLATION_ID=""
     PRIVATE_KEY=""
     
@@ -766,10 +778,6 @@ cmd_configure_github_app() {
     i=0
     while [ $i -lt ${#ARGS[@]} ]; do
         case "${ARGS[$i]}" in
-            --app-id)
-                APP_ID="${ARGS[$((i+1))]}"
-                i=$((i+2))
-                ;;
             --installation-id)
                 INSTALLATION_ID="${ARGS[$((i+1))]}"
                 i=$((i+2))
@@ -785,49 +793,110 @@ cmd_configure_github_app() {
     done
 
     if [ -z "$REMOTE" ]; then 
-        echo -e "${RED}Usage: ./dockup configure-github-app user@host [--app-id ID] [--installation-id ID] [--private-key KEY]${NC}"
+        echo -e "${RED}Usage: ./dockup configure-github-app user@host [--installation-id ID] [--private-key KEY]${NC}"
         echo ""
-        echo "This command configures GitHub App credentials on your VPS."
-        echo "You can provide values via flags or be prompted interactively."
+        echo "This command configures the DockUp GitHub App on your VPS."
+        echo ""
+        echo -e "${YELLOW}Quick Setup:${NC}"
+        echo "  1. Install the DockUp GitHub App on your repositories:"
+        echo "     https://github.com/apps/dockup/installations/new"
+        echo "  2. Get your Installation ID from the URL after installing"
+        echo "  3. Run this command and provide the Installation ID"
         echo ""
         echo "Options:"
-        echo "  --app-id ID           GitHub App ID"
-        echo "  --installation-id ID GitHub App Installation ID"
-        echo "  --private-key KEY    Private key content (or path to .pem file)"
+        echo "  --installation-id ID  GitHub App Installation ID (required)"
+        echo "  --private-key KEY    Private key path (optional, uses default if not provided)"
         echo ""
         echo "Example:"
         echo "  dockup configure-github-app user@vps-ip"
-        echo "  dockup configure-github-app user@vps-ip --app-id 123456 --installation-id 789012 --private-key \"\$(cat key.pem)\""
+        echo "  dockup configure-github-app user@vps-ip --installation-id 95887454"
         exit 1
     fi
 
-    echo -e "${GREEN}🔧 Configuring GitHub App on $REMOTE...${NC}"
+    echo -e "${GREEN}🔧 Configuring DockUp GitHub App on $REMOTE...${NC}"
+    echo ""
+    echo -e "${BLUE}Using App ID: $APP_ID (DockUp GitHub App)${NC}"
     echo ""
 
-    # Prompt for missing values
-    if [ -z "$APP_ID" ]; then
-        read -p "Enter GitHub App ID: " APP_ID
-        if [ -z "$APP_ID" ]; then
-            echo -e "${RED}❌ App ID is required${NC}"
-            exit 1
+    # Check if already configured
+    EXISTING_CONFIG=$(ssh $REMOTE "test -f /etc/dockup/github-app.json && jq -r '.installation_id // empty' /etc/dockup/github-app.json 2>/dev/null" || echo "")
+    if [ -n "$EXISTING_CONFIG" ] && [ "$EXISTING_CONFIG" != "null" ] && [ "$EXISTING_CONFIG" != "" ]; then
+        echo -e "${YELLOW}⚠️  GitHub App is already configured${NC}"
+        echo -e "${YELLOW}   Current Installation ID: $EXISTING_CONFIG${NC}"
+        echo ""
+        read -p "Do you want to update it? (y/n): " UPDATE_CONFIRM
+        if [ "$UPDATE_CONFIRM" != "y" ] && [ "$UPDATE_CONFIRM" != "Y" ]; then
+            echo -e "${YELLOW}Cancelled${NC}"
+            exit 0
         fi
+        echo ""
     fi
 
+    # Get Installation ID
     if [ -z "$INSTALLATION_ID" ]; then
-        read -p "Enter Installation ID: " INSTALLATION_ID
+        echo -e "${YELLOW}📋 Installation ID Required${NC}"
+        echo ""
+        echo "To get your Installation ID:"
+        echo "  1. Go to: https://github.com/apps/dockup/installations"
+        echo "  2. Click on your installation (or 'Configure' if not installed)"
+        echo "  3. The Installation ID is in the URL:"
+        echo "     https://github.com/settings/installations/INSTALLATION_ID"
+        echo ""
+        echo -e "${BLUE}Or install the app here:${NC}"
+        echo "  https://github.com/apps/dockup/installations/new"
+        echo ""
+        
+        # Try to auto-detect if gh CLI is available
+        if command -v gh &> /dev/null && gh auth status &> /dev/null; then
+            echo -e "${BLUE}🔍 Attempting to auto-detect Installation ID...${NC}"
+            DETECTED_ID=$(gh api "app/installations" --jq ".[] | select(.app_id == $APP_ID) | .id" 2>/dev/null | head -n1)
+            if [ -n "$DETECTED_ID" ]; then
+                echo -e "${GREEN}   Found Installation ID: $DETECTED_ID${NC}"
+                read -p "Use this Installation ID? (Y/n): " USE_DETECTED
+                if [ -z "$USE_DETECTED" ] || [ "$USE_DETECTED" = "y" ] || [ "$USE_DETECTED" = "Y" ]; then
+                    INSTALLATION_ID="$DETECTED_ID"
+                fi
+            fi
+        fi
+        
         if [ -z "$INSTALLATION_ID" ]; then
-            echo -e "${RED}❌ Installation ID is required${NC}"
-            exit 1
+            echo ""
+            read -p "Enter Installation ID: " INSTALLATION_ID
+            if [ -z "$INSTALLATION_ID" ]; then
+                echo -e "${RED}❌ Installation ID is required${NC}"
+                echo ""
+                echo -e "${YELLOW}Get it from: https://github.com/apps/dockup/installations${NC}"
+                exit 1
+            fi
         fi
     fi
 
+    # Get Private Key (optional - can use a default or prompt)
     if [ -z "$PRIVATE_KEY" ]; then
-        echo "Enter private key (paste the entire .pem file content, including BEGIN/END lines):"
-        echo "Press Enter after pasting, then Ctrl+D to finish:"
-        PRIVATE_KEY=$(cat)
-        if [ -z "$PRIVATE_KEY" ]; then
-            echo -e "${RED}❌ Private key is required${NC}"
-            exit 1
+        echo ""
+        echo -e "${YELLOW}📝 Private Key${NC}"
+        echo ""
+        echo "The private key is required for authentication."
+        echo "If you have the .pem file, provide the path or paste the content."
+        echo ""
+        read -p "Private key file path (or press Enter to paste): " KEY_INPUT
+        
+        if [ -n "$KEY_INPUT" ]; then
+            if [ -f "$KEY_INPUT" ]; then
+                PRIVATE_KEY=$(cat "$KEY_INPUT")
+            else
+                echo -e "${RED}❌ File not found: $KEY_INPUT${NC}"
+                exit 1
+            fi
+        else
+            echo ""
+            echo "Paste the private key content (including BEGIN/END lines):"
+            echo "Press Enter, paste, then Ctrl+D (or Ctrl+Z on Windows) to finish:"
+            PRIVATE_KEY=$(cat)
+            if [ -z "$PRIVATE_KEY" ]; then
+                echo -e "${RED}❌ Private key is required${NC}"
+                exit 1
+            fi
         fi
     else
         # Check if it's a file path
@@ -838,13 +907,18 @@ cmd_configure_github_app() {
 
     # Validate private key format
     if ! echo "$PRIVATE_KEY" | grep -q "BEGIN.*PRIVATE KEY"; then
-        echo -e "${YELLOW}⚠️  Warning: Private key doesn't appear to have BEGIN/END markers${NC}"
-        echo -e "${YELLOW}   Make sure you're pasting the complete key including headers${NC}"
-        read -p "Continue anyway? (y/n): " CONTINUE
-        if [ "$CONTINUE" != "y" ] && [ "$CONTINUE" != "Y" ]; then
-            exit 1
-        fi
+        echo -e "${RED}❌ Invalid private key format${NC}"
+        echo -e "${YELLOW}   The key must include BEGIN and END markers:${NC}"
+        echo "   -----BEGIN RSA PRIVATE KEY-----"
+        echo "   ..."
+        echo "   -----END RSA PRIVATE KEY-----"
+        echo ""
+        echo -e "${YELLOW}Make sure you copied the entire key from the .pem file.${NC}"
+        exit 1
     fi
+    
+    echo ""
+    echo -e "${BLUE}✓ Validating configuration...${NC}"
 
     # Create JSON content
     JSON_CONTENT=$(cat <<EOF
@@ -872,27 +946,64 @@ JSONEOF
     }
 
     # Verify it was saved correctly
-    echo -e "${BLUE}✓ Verifying configuration...${NC}"
     VERIFIED=$(ssh $REMOTE "jq -r '.app_id, .installation_id' /etc/dockup/github-app.json 2>/dev/null" || echo "")
     
     if [ -n "$VERIFIED" ]; then
-        echo -e "${GREEN}✅ GitHub App configured successfully!${NC}"
+        echo -e "${GREEN}✅ Configuration saved successfully!${NC}"
         echo ""
-        echo -e "${YELLOW}Configuration saved:${NC}"
-        echo "  App ID: $APP_ID"
+        echo -e "${YELLOW}📋 Configuration Summary:${NC}"
+        echo "  App ID: $APP_ID (DockUp GitHub App)"
         echo "  Installation ID: $INSTALLATION_ID"
         echo "  Location: /etc/dockup/github-app.json"
         echo ""
+        
         # Reload agent to pick up new config
-        echo -e "${BLUE}🔄 Reloading DockUp agent to load GitHub App config...${NC}"
-        ssh $REMOTE "curl -s -X POST http://localhost:8080/reload > /dev/null 2>&1 || systemctl restart dockup" || true
-        sleep 2
-        echo -e "${GREEN}✅ Agent reloaded${NC}"
+        echo -e "${BLUE}🔄 Reloading DockUp agent...${NC}"
+        RELOAD_OUTPUT=$(ssh $REMOTE "curl -s -X POST http://localhost:8080/reload 2>&1" || echo "")
+        if echo "$RELOAD_OUTPUT" | grep -q "reloaded\|200"; then
+            echo -e "${GREEN}   ✓ Agent reloaded${NC}"
+        else
+            echo -e "${YELLOW}   ⚠️  Reload endpoint not available, restarting agent...${NC}"
+            ssh $REMOTE "systemctl restart dockup" || true
+            sleep 2
+            echo -e "${GREEN}   ✓ Agent restarted${NC}"
+        fi
         echo ""
-        echo -e "${GREEN}You can now deploy repositories where the GitHub App is installed.${NC}"
+        
+        # Verify the app is installed
+        echo -e "${BLUE}🔍 Verifying GitHub App installation...${NC}"
+        if command -v gh &> /dev/null && gh auth status &> /dev/null; then
+            INSTALLATION_INFO=$(gh api "app/installations/$INSTALLATION_ID" 2>/dev/null || echo "")
+            if [ -n "$INSTALLATION_INFO" ]; then
+                INSTALLED_REPOS=$(echo "$INSTALLATION_INFO" | jq -r '.repository_selection // "unknown"' 2>/dev/null || echo "unknown")
+                echo -e "${GREEN}   ✓ Installation verified${NC}"
+                if [ "$INSTALLED_REPOS" = "all" ]; then
+                    echo -e "${GREEN}   ✓ App installed on all repositories${NC}"
+                elif [ "$INSTALLED_REPOS" = "selected" ]; then
+                    REPO_COUNT=$(echo "$INSTALLATION_INFO" | jq -r '.repositories | length' 2>/dev/null || echo "?")
+                    echo -e "${GREEN}   ✓ App installed on $REPO_COUNT selected repository(ies)${NC}"
+                fi
+            else
+                echo -e "${YELLOW}   ⚠️  Could not verify installation (this is okay if you just installed)${NC}"
+            fi
+        else
+            echo -e "${YELLOW}   ℹ️  Install GitHub CLI and run 'gh auth login' to verify installation${NC}"
+        fi
+        echo ""
+        
+        echo -e "${GREEN}🎉 Setup Complete!${NC}"
+        echo ""
+        echo -e "${YELLOW}Next Steps:${NC}"
+        echo "  1. Make sure the DockUp GitHub App is installed on your repositories:"
+        echo "     https://github.com/apps/dockup/installations"
+        echo ""
+        echo "  2. Deploy your first repository:"
+        echo "     cd your-project"
+        echo "     dockup deploy $REMOTE"
         echo ""
     else
         echo -e "${RED}❌ Failed to verify configuration${NC}"
+        echo -e "${YELLOW}   Check that the file was created correctly on the VPS${NC}"
         exit 1
     fi
 }

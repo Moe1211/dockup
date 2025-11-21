@@ -58,10 +58,14 @@ if ! curl -fsSL "$MAIN_GO_URL" -o main.go; then
     exit 1
 fi
 
-# Download go.mod (required for building)
+# Download go.mod and go.sum (required for building)
 GO_MOD_URL="${GO_MOD_URL:-$DOCKUP_REPO_URL/go.mod}"
+GO_SUM_URL="${GO_SUM_URL:-$DOCKUP_REPO_URL/go.sum}"
 if ! curl -fsSL "$GO_MOD_URL" -o go.mod; then
     echo -e "${YELLOW}⚠️  Failed to download go.mod (may cause build issues)${NC}"
+fi
+if ! curl -fsSL "$GO_SUM_URL" -o go.sum 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  go.sum not found (will be generated on first build)${NC}"
 fi
 
 # Make dockup executable
@@ -76,11 +80,14 @@ rm dockup.bak
 echo -e "${BLUE}📥 Installing to $INSTALL_DIR...${NC}"
 cp dockup "$INSTALL_DIR/dockup"
 
-# Install main.go and go.mod
+# Install main.go, go.mod, and go.sum
 echo -e "${BLUE}📥 Installing main.go to $DATA_DIR...${NC}"
 cp main.go "$DATA_DIR/main.go"
 if [ -f go.mod ]; then
     cp go.mod "$DATA_DIR/go.mod"
+fi
+if [ -f go.sum ]; then
+    cp go.sum "$DATA_DIR/go.sum"
 fi
 
 # Add to PATH if not already there (for user installs)

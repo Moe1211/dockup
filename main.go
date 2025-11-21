@@ -383,8 +383,17 @@ func handleReload(w http.ResponseWriter, r *http.Request) {
 
 	// Also reload GitHub App config
 	loadGitHubAppConfig()
+	
+	// Safely read githubAppConfig with proper locking
+	githubAppLock.RLock()
+	appID := ""
 	if githubAppConfig != nil {
-		log.Printf("✅ GitHub App config reloaded (App ID: %s)", githubAppConfig.AppID)
+		appID = githubAppConfig.AppID
+	}
+	githubAppLock.RUnlock()
+	
+	if appID != "" {
+		log.Printf("✅ GitHub App config reloaded (App ID: %s)", appID)
 	} else {
 		log.Printf("⚠️  GitHub App config not found or invalid")
 	}
