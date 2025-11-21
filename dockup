@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.17"
+DOCKUP_VERSION="1.0.18"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -1484,8 +1484,13 @@ cmd_list() {
     echo -e "${BLUE}Found $APP_COUNT registered app(s):${NC}"
     echo ""
     
-    # Use jq to format the output nicely
-    ssh $REMOTE "jq -r 'to_entries[] | \"\(.key)\" + \"|\" + (.value | \"\(.path)|\(.branch)|\(.compose_file // \"docker-compose.yml\")\")' /etc/dockup/registry.json" 2>/dev/null | while IFS='|' read -r APP_NAME APP_PATH APP_BRANCH APP_COMPOSE; do
+    # Get all app data first to avoid subshell issues with pipe
+    APP_DATA=$(ssh $REMOTE "jq -r 'to_entries[] | \"\(.key)\" + \"|\" + (.value | \"\(.path)|\(.branch)|\(.compose_file // \"docker-compose.yml\")\")' /etc/dockup/registry.json" 2>/dev/null)
+    
+    # Use process substitution to avoid subshell issues
+    while IFS='|' read -r APP_NAME APP_PATH APP_BRANCH APP_COMPOSE; do
+        [ -z "$APP_NAME" ] && continue  # Skip empty lines
+        
         echo -e "${GREEN}📦 $APP_NAME${NC}"
         echo -e "   ${BLUE}Path:${NC}        $APP_PATH"
         echo -e "   ${BLUE}Branch:${NC}      $APP_BRANCH"
@@ -1506,7 +1511,7 @@ cmd_list() {
             echo -e "   ${YELLOW}Containers:${NC}  Not running"
         fi
         echo ""
-    done
+    done <<< "$APP_DATA"
 }
 
 # --- Main Switch ---
