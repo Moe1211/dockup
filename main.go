@@ -258,7 +258,9 @@ func getInstallationToken() (string, error) {
 func getGitHubTokenURL(repoURL string) (string, error) {
 	// Check if URL already has a token embedded - return early
 	// Format: https://x-access-token:TOKEN@github.com/user/repo.git
-	if strings.Contains(repoURL, "x-access-token:") && strings.Contains(repoURL, "github.com") {
+	// Also handle URLs that were already processed
+	if strings.Contains(repoURL, "x-access-token:") {
+		// URL already has our token format, return as-is
 		return repoURL, nil
 	}
 
