@@ -248,6 +248,8 @@ cmd_init() {
                 WEBHOOK_EXISTS=true
             else
                 # Create new webhook
+                # Store stderr separately to capture any errors
+                HOOK_STDERR=$(mktemp)
                 HOOK_RESPONSE=$(gh api "repos/$REPO_FULL_NAME/hooks" \
                     -X POST \
                     -f name=web \
@@ -255,19 +257,43 @@ cmd_init() {
                     -f "config[url]=$WEBHOOK_URL" \
                     -f "config[content_type]=json" \
                     -f "config[secret]=$SECRET" \
-                    -f "events[]=push" 2>&1)
+                    -f "events[]=push" 2>"$HOOK_STDERR")
+                HOOK_EXIT_CODE=$?
+                HOOK_ERROR=$(cat "$HOOK_STDERR" 2>/dev/null || echo "")
+                rm -f "$HOOK_STDERR"
                 
-                if [ $? -eq 0 ]; then
+                # Combine stdout and stderr for error checking
+                FULL_RESPONSE="${HOOK_RESPONSE}${HOOK_ERROR}"
+                
+                if [ $HOOK_EXIT_CODE -eq 0 ]; then
                     echo -e "${GREEN}✅ Webhook added automatically!${NC}"
                     WEBHOOK_EXISTS=true
                 else
                     # Check if error is because webhook already exists
-                    if echo "$HOOK_RESPONSE" | grep -qi "already exists\|duplicate\|422"; then
+                    if echo "$FULL_RESPONSE" | grep -qi "already exists\|duplicate\|422"; then
                         echo -e "${GREEN}✅ Webhook already exists${NC}"
                         WEBHOOK_EXISTS=true
+                    elif echo "$FULL_RESPONSE" | grep -qi "401\|unauthorized"; then
+                        echo -e "${YELLOW}⚠️  Authentication error${NC}"
+                        echo -e "${YELLOW}   Please run: gh auth login${NC}"
+                        echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
+                    elif echo "$FULL_RESPONSE" | grep -qi "403\|forbidden"; then
+                        echo -e "${YELLOW}⚠️  Permission denied${NC}"
+                        echo -e "${YELLOW}   Make sure you have 'admin' or 'write' access to the repository${NC}"
+                        echo -e "${YELLOW}   Repository: $REPO_FULL_NAME${NC}"
+                        echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
+                    elif echo "$FULL_RESPONSE" | grep -qi "404\|not found"; then
+                        echo -e "${YELLOW}⚠️  Repository not found${NC}"
+                        echo -e "${YELLOW}   Check that the repository exists and you have access: $REPO_FULL_NAME${NC}"
+                        echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
                     else
                         echo -e "${YELLOW}⚠️  Could not add webhook automatically.${NC}"
-                        echo -e "${YELLOW}   Error: $(echo "$HOOK_RESPONSE" | head -n1)${NC}"
+                        if [ -n "$FULL_RESPONSE" ]; then
+                            ERROR_MSG=$(echo "$FULL_RESPONSE" | head -n5 | grep -v "^$" | head -n1 | cut -c1-200)
+                            if [ -n "$ERROR_MSG" ]; then
+                                echo -e "${YELLOW}   Error: $ERROR_MSG${NC}"
+                            fi
+                        fi
                         echo -e "${YELLOW}   Please add it manually using the instructions above.${NC}"
                     fi
                 fi
@@ -467,6 +493,10 @@ cmd_deploy() {
             else
                 # Create new webhook
                 echo -e "${BLUE}   Creating webhook via GitHub API...${NC}"
+                
+                # Create webhook with better error handling
+                # Store stderr separately to capture any errors
+                HOOK_STDERR=$(mktemp)
                 HOOK_RESPONSE=$(gh api "repos/$REPO_FULL_NAME/hooks" \
                     -X POST \
                     -f name=web \
@@ -474,19 +504,41 @@ cmd_deploy() {
                     -f "config[url]=$WEBHOOK_URL" \
                     -f "config[content_type]=json" \
                     -f "config[secret]=$SECRET" \
-                    -f "events[]=push" 2>&1)
+                    -f "events[]=push" 2>"$HOOK_STDERR")
+                HOOK_EXIT_CODE=$?
+                HOOK_ERROR=$(cat "$HOOK_STDERR" 2>/dev/null || echo "")
+                rm -f "$HOOK_STDERR"
                 
-                if [ $? -eq 0 ]; then
+                # Combine stdout and stderr for error checking
+                FULL_RESPONSE="${HOOK_RESPONSE}${HOOK_ERROR}"
+                
+                if [ $HOOK_EXIT_CODE -eq 0 ]; then
                     echo -e "${GREEN}   ✓ Webhook created successfully!${NC}"
                     WEBHOOK_EXISTS=true
                 else
                     # Check if error is because webhook already exists (different error format)
-                    if echo "$HOOK_RESPONSE" | grep -qi "already exists\|duplicate\|422"; then
+                    if echo "$FULL_RESPONSE" | grep -qi "already exists\|duplicate\|422"; then
                         echo -e "${GREEN}   ✓ Webhook already exists${NC}"
                         WEBHOOK_EXISTS=true
+                    elif echo "$FULL_RESPONSE" | grep -qi "401\|unauthorized"; then
+                        echo -e "${YELLOW}   ⚠️  Authentication error${NC}"
+                        echo -e "${YELLOW}   Please run: gh auth login${NC}"
+                    elif echo "$FULL_RESPONSE" | grep -qi "403\|forbidden"; then
+                        echo -e "${YELLOW}   ⚠️  Permission denied${NC}"
+                        echo -e "${YELLOW}   Make sure you have 'admin' or 'write' access to the repository${NC}"
+                        echo -e "${YELLOW}   Repository: $REPO_FULL_NAME${NC}"
+                    elif echo "$FULL_RESPONSE" | grep -qi "404\|not found"; then
+                        echo -e "${YELLOW}   ⚠️  Repository not found${NC}"
+                        echo -e "${YELLOW}   Check that the repository exists and you have access: $REPO_FULL_NAME${NC}"
                     else
                         echo -e "${YELLOW}   ⚠️  Could not create webhook automatically${NC}"
-                        echo -e "${YELLOW}   Error: $(echo "$HOOK_RESPONSE" | head -n1)${NC}"
+                        if [ -n "$FULL_RESPONSE" ]; then
+                            # Show first few lines of error, but limit length
+                            ERROR_MSG=$(echo "$FULL_RESPONSE" | head -n5 | grep -v "^$" | head -n1 | cut -c1-200)
+                            if [ -n "$ERROR_MSG" ]; then
+                                echo -e "${YELLOW}   Error: $ERROR_MSG${NC}"
+                            fi
+                        fi
                     fi
                 fi
             fi
