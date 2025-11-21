@@ -53,12 +53,36 @@ VHS script for automated demo recording. Edit this file to customize the demo fl
 vhs scripts/demo.tape
 ```
 
+### `post-commit-tag.sh`
+Automatically creates a git tag when `DOCKUP_VERSION` is updated in the `dockup` file.
+
+**How it works:**
+- Runs after each commit
+- Checks if the `dockup` file was modified
+- Extracts `DOCKUP_VERSION` from the file
+- Creates a git tag (e.g., `v1.0.13`) if it doesn't already exist
+- Uses the commit message as the tag annotation
+
+**Usage:**
+This script runs automatically via the post-commit git hook. To run manually:
+```bash
+./scripts/post-commit-tag.sh
+```
+
+**Note:** The tag is created locally. To push it to the remote:
+```bash
+git push origin v1.0.13
+# Or push all tags:
+git push --tags
+```
+
 ## Integration
 
 These scripts are automatically run by:
 - Git pre-commit hook (`.git/hooks/pre-commit`)
+- Git post-commit hook (`.git/hooks/post-commit`)
 - Pre-commit framework (`.pre-commit-config.yaml`)
-- Makefile (`make pre-commit`)
+- Makefile (`make pre-commit`, `make install-hooks`)
 
 ## Requirements
 
