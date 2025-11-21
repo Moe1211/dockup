@@ -19,6 +19,9 @@ DOCKUP_REPO_URL="${DOCKUP_REPO_URL:-https://raw.githubusercontent.com/Moe1211/do
 DOCKUP_SCRIPT_URL="${DOCKUP_SCRIPT_URL:-$DOCKUP_REPO_URL/dockup}"
 MAIN_GO_URL="${MAIN_GO_URL:-$DOCKUP_REPO_URL/main.go}"
 
+# Save the original working directory (where the user ran the command)
+ORIGINAL_DIR=$(pwd)
+
 # Temporary directory
 TMP_DIR=$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT
@@ -54,6 +57,16 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-# Run dockup with all passed arguments
-exec ./dockup "$@"
+# For 'setup' command, we need main.go in the current directory
+# For 'init' command, we need to be in the user's project directory
+if [ "$1" = "setup" ]; then
+    # Stay in temp dir for setup (needs main.go to build)
+    cd "$TMP_DIR"
+    exec ./dockup "$@"
+else
+    # Change back to original directory for init (needs git context)
+    cd "$ORIGINAL_DIR"
+    # Copy main.go to current dir if setup might be needed later, but for init we don't need it
+    exec "$TMP_DIR/dockup" "$@"
+fi
 
