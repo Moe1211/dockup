@@ -20,7 +20,21 @@ DOCKUP_SCRIPT_URL="${DOCKUP_SCRIPT_URL:-$DOCKUP_REPO_URL/dockup}"
 MAIN_GO_URL="${MAIN_GO_URL:-$DOCKUP_REPO_URL/main.go}"
 
 # Save the original working directory (where the user ran the command)
-ORIGINAL_DIR=$(pwd)
+# When piping to bash, we need to capture pwd before any cd operations
+# Try multiple methods to ensure we get the correct directory
+if [ -n "$PWD" ]; then
+    ORIGINAL_DIR="$PWD"
+elif command -v pwd > /dev/null 2>&1; then
+    ORIGINAL_DIR=$(pwd)
+else
+    # Fallback: use current directory
+    ORIGINAL_DIR="."
+fi
+# Convert to absolute path to avoid any issues with relative paths
+ORIGINAL_DIR=$(cd "$ORIGINAL_DIR" 2>/dev/null && pwd) || {
+    echo -e "${RED}❌ Error: Could not determine current working directory${NC}"
+    exit 1
+}
 
 # Temporary directory
 TMP_DIR=$(mktemp -d)
@@ -65,8 +79,20 @@ if [ "$1" = "setup" ]; then
     exec ./dockup "$@"
 else
     # Change back to original directory for init (needs git context)
-    cd "$ORIGINAL_DIR"
-    # Copy main.go to current dir if setup might be needed later, but for init we don't need it
+    if [ ! -d "$ORIGINAL_DIR" ]; then
+        echo -e "${RED}❌ Error: Original directory no longer exists: $ORIGINAL_DIR${NC}"
+        exit 1
+    fi
+    cd "$ORIGINAL_DIR" || {
+        echo -e "${RED}❌ Error: Failed to change to directory: $ORIGINAL_DIR${NC}"
+        exit 1
+    }
+    # Verify we're in a git repo (for better error message)
+    if [ "$1" = "init" ] && ! git rev-parse --show-toplevel > /dev/null 2>&1; then
+        echo -e "${RED}❌ Error: Not a Git repository in: $(pwd)${NC}"
+        echo -e "${YELLOW}Make sure you're running this command from inside your project's Git repository.${NC}"
+        exit 1
+    fi
     exec "$TMP_DIR/dockup" "$@"
 fi
 
