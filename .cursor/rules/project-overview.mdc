@@ -1,3 +1,8 @@
+---
+description: DockUp project overview, architecture, and general development guidelines
+alwaysApply: true
+---
+
 # DockUp Cursor Rules
 
 This file contains project-specific rules for Cursor AI assistant.
@@ -5,32 +10,6 @@ This file contains project-specific rules for Cursor AI assistant.
 ## Project Overview
 
 DockUp is a zero-bloat PaaS solution that automatically deploys Docker Compose applications from GitHub to VPS.
-
-## Code Style
-
-### Go Files
-
-- Follow standard Go formatting (gofmt)
-- Use goimports for import organization
-- Handle all errors explicitly
-- Use meaningful variable names
-- Keep functions small and focused
-- See `.cursor/rules-go.go` for detailed rules
-
-### Shell Scripts
-
-- Use `#!/bin/bash` shebang
-- Always use `set -e`
-- Quote all variables
-- Use `[[ ]]` for conditionals
-- See `.cursor/rules-shell.sh` for detailed rules
-
-### Markdown Files
-
-- Use clear headings
-- Include code examples
-- Keep documentation up to date
-- See `.cursor/rules-markdown.md` for detailed rules
 
 ## Architecture
 
@@ -129,19 +108,19 @@ DockUp is a zero-bloat PaaS solution that automatically deploys Docker Compose a
 
 ### .sh files
 
-See `.cursor/rules-shell.sh`
+See `@rules-shell.mdc`
 
 ### .go files
 
-See `.cursor/rules-go.go`
+See `@rules-go.mdc`
 
 ### .md files
 
-See `.cursor/rules-markdown.md`
+See `@rules-markdown.mdc`
 
 ### docs/ directory
 
-See `.cursor/rules-docs.md`
+See `@rules-docs.mdc`
 
 - Contains comparison guides, content templates, and submission guides
 - Update comparison guides when features are added
@@ -162,7 +141,7 @@ See `.cursor/rules-docs.md`
 
 ### ROADMAP.md
 
-See `.cursor/rules-roadmap.md`
+See `@rules-roadmap.mdc`
 
 ## Pre-commit Checks
 

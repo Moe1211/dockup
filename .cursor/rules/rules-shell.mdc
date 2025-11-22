@@ -1,3 +1,10 @@
+---
+description: Shell script style, conventions, and best practices for DockUp
+globs:
+  - "**/*.sh"
+alwaysApply: false
+---
+
 # Shell Script Rules for DockUp
 
 ## General Guidelines
@@ -56,4 +63,3 @@
 - Use `systemctl` commands for agent management
 - Use `/etc/dockup/registry.json` for app registry
 - Use `/opt/dockup/apps/` for app directories
-

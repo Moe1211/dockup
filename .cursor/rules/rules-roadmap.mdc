@@ -1,3 +1,10 @@
+---
+description: Roadmap documentation structure and maintenance guidelines
+globs:
+  - "ROADMAP.md"
+alwaysApply: false
+---
+
 # Roadmap Documentation Rules
 
 ## Roadmap Structure
@@ -116,4 +123,3 @@
 - Note that it's a living document
 - Welcome suggestions
 - Maintain zero-bloat principle
-

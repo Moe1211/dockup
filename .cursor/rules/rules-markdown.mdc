@@ -1,3 +1,10 @@
+---
+description: Markdown documentation style and best practices for DockUp
+globs:
+  - "**/*.md"
+alwaysApply: false
+---
+
 # Markdown Documentation Rules for DockUp
 
 ## General Guidelines
@@ -102,4 +109,3 @@ Before committing documentation:
 - [ ] Spelling and grammar checked
 - [ ] Formatting is consistent
 - [ ] Examples are relevant and clear
-

@@ -525,7 +525,11 @@
                     </div>
                     <div class="feature">
                         <h4>🎯 Interactive CLI</h4>
-                        <p>Menu-driven interface for guided deployments (NEW!)</p>
+                        <p>Menu-driven interface for guided deployments</p>
+                    </div>
+                    <div class="feature">
+                        <h4>💾 Remote Host Memory</h4>
+                        <p>Remembers your VPS connections for quicker deployments (NEW!)</p>
                     </div>
                 </div>
             </div>
@@ -767,11 +771,14 @@ dockup user@vps-ip remove my-app</code>
                     <p>Run <code style="background: rgba(99, 102, 241, 0.2); padding: 2px 6px; border-radius: 4px;">dockup</code> with no arguments to enter interactive mode. You'll see a numbered menu where you can:</p>
                     <ul>
                         <li>Select commands from a menu</li>
-                        <li>Enter remote host information when prompted</li>
+                        <li>Choose from previously used remote hosts or enter a new one</li>
                         <li>Select apps from a list (for disconnect/remove commands)</li>
                         <li>Get help and version information</li>
                     </ul>
                     <div class="success alert" style="margin-top: 15px;">
+                        <strong>✅ Remote Host Memory:</strong> DockUp remembers your VPS connections (user@server-ip) and shows them as selectable options, making repeated deployments faster. Remote hosts are stored in <code style="background: rgba(16, 185, 129, 0.2); padding: 2px 6px; border-radius: 4px;">~/.dockup/remotes.json</code>.
+                    </div>
+                    <div class="note alert" style="margin-top: 15px;">
                         <strong>✅ Backward Compatible:</strong> All existing command-line usage still works. Interactive mode only activates when no arguments are provided.
                     </div>
                 </div>

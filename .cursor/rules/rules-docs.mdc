@@ -1,3 +1,10 @@
+---
+description: Documentation directory structure and standards for docs/ folder
+globs:
+  - "docs/**"
+alwaysApply: false
+---
+
 # Documentation Directory Rules
 
 ## Directory Structure
