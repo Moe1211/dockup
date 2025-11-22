@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.25"
+DOCKUP_VERSION="1.0.26"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -1560,16 +1560,16 @@ prompt_remote() {
     local default_remote="$2"
     
     if [ -n "$default_remote" ]; then
-        echo -e "${BLUE}$prompt_text${NC} (default: $default_remote)"
+        echo -e "${BLUE}$prompt_text${NC} (default: $default_remote)" >&2
         read -p "Remote host (user@host): " REMOTE_INPUT
         REMOTE_INPUT="${REMOTE_INPUT:-$default_remote}"
     else
-        echo -e "${BLUE}$prompt_text${NC}"
+        echo -e "${BLUE}$prompt_text${NC}" >&2
         read -p "Remote host (user@host): " REMOTE_INPUT
     fi
     
     if [ -z "$REMOTE_INPUT" ]; then
-        echo -e "${RED}❌ Remote host is required${NC}"
+        echo -e "${RED}❌ Remote host is required${NC}" >&2
         return 1
     fi
     
@@ -1614,11 +1614,11 @@ select_app() {
     if [ ${#apps[@]} -eq 0 ]; then
         if git rev-parse --show-toplevel > /dev/null 2>&1; then
             local detected_app=$(basename `git rev-parse --show-toplevel`)
-            echo -e "${YELLOW}⚠️  No apps found on remote. Using detected app: $detected_app${NC}"
+            echo -e "${YELLOW}⚠️  No apps found on remote. Using detected app: $detected_app${NC}" >&2
             echo "$detected_app"
             return 0
         else
-            echo -e "${YELLOW}⚠️  No apps found and not in a git repository${NC}"
+            echo -e "${YELLOW}⚠️  No apps found and not in a git repository${NC}" >&2
             read -p "Enter app name: " APP_INPUT
             if [ -z "$APP_INPUT" ]; then
                 return 1
@@ -1635,9 +1635,9 @@ select_app() {
     fi
     
     # Multiple apps - show selection menu
-    echo ""
-    echo -e "${BLUE}Select an app:${NC}"
-    echo ""
+    echo "" >&2
+    echo -e "${BLUE}Select an app:${NC}" >&2
+    echo "" >&2
     
     PS3="Select app (1-${#apps[@]}): "
     select app in "${apps[@]}" "Cancel"; do
@@ -1647,7 +1647,7 @@ select_app() {
             echo "$app"
             return 0
         else
-            echo -e "${RED}Invalid selection${NC}"
+            echo -e "${RED}Invalid selection${NC}" >&2
         fi
     done
 }
@@ -1745,7 +1745,8 @@ interactive_menu() {
             case "$choice" in
                 "setup"|"init"|"deploy"|"list"|"disconnect"|"remove"|"configure-github-app")
                     remote=$(prompt_remote "Enter remote host" "")
-                    if [ -z "$remote" ] || [ $? -ne 0 ]; then
+                    local prompt_status=$?
+                    if [ -z "$remote" ] || [ $prompt_status -ne 0 ]; then
                         echo -e "${RED}❌ Remote host is required${NC}"
                         echo ""
                         echo -e "${YELLOW}Press Enter to return to menu...${NC}"
@@ -1760,7 +1761,8 @@ interactive_menu() {
             case "$choice" in
                 "disconnect"|"remove")
                     app_name=$(select_app "$remote")
-                    if [ -z "$app_name" ] || [ $? -ne 0 ]; then
+                    local select_status=$?
+                    if [ -z "$app_name" ] || [ $select_status -ne 0 ]; then
                         echo -e "${YELLOW}Cancelled${NC}"
                         echo ""
                         echo -e "${YELLOW}Press Enter to return to menu...${NC}"
