@@ -27,3 +27,11 @@ Configuring
 
 # Misc
 test.tape
+
+# Social
+social/
+.github/
+docs/
+LAUNCH_CHECKLIST.md
+MARKETING.md
+USERS.md
