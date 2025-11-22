@@ -86,10 +86,67 @@ All features listed below are **fully implemented and working**.
 - ✅ **TROUBLESHOOTING.md**: Troubleshooting guide
 - ✅ **HOSTING.md**: Hosting and domain setup instructions
 - ✅ **index.html**: Web-based documentation page
+- ✅ **ROADMAP.md**: This file - roadmap and contribution guide
+- ✅ **FEATURES.md**: Comprehensive feature list
+- ✅ **USERS.md**: User showcase placeholder
+- ✅ **docs/**: Additional documentation and comparisons
 
 ---
 
 ## 🚀 Upcoming Phases
+
+### Phase 0: Simple-Touch Additions (Quick Wins)
+
+**Goal**: Add simple, high-impact features that improve usability without adding complexity.
+
+#### Tasks
+
+- [ ] **Basic Web UI**
+  - [ ] Simple web dashboard (HTML/CSS/JS, no framework)
+  - [ ] View registered apps
+  - [ ] View deployment status
+  - [ ] View logs (read-only)
+  - [ ] Trigger manual deployments
+  - [ ] Single HTML file or minimal static site
+
+- [ ] **Reverse Proxy Integration**
+  - [ ] Automatic Nginx configuration generation
+  - [ ] Automatic Traefik integration
+  - [ ] Domain/subdomain management
+  - [ ] Port mapping to domain names
+  - [ ] Optional: Caddy integration
+
+- [ ] **SSL Certificate Management**
+  - [ ] Automatic Let's Encrypt certificate generation
+  - [ ] Certificate renewal
+  - [ ] HTTPS redirect configuration
+  - [ ] Integration with reverse proxy
+  - [ ] Optional: Custom certificate support
+
+- [ ] **Basic Monitoring Dashboard**
+  - [ ] Deployment history view
+  - [ ] App status overview
+  - [ ] Container status (running/stopped)
+  - [ ] Basic metrics (deployment count, success rate)
+  - [ ] Real-time log viewer
+
+- [ ] **Simple User Management**
+  - [ ] Basic authentication (API keys or simple auth)
+  - [ ] Web UI access control
+  - [ ] Optional: Multi-user support (future)
+
+- [ ] **Enhanced CLI Status**
+  - [ ] `dockup status` command
+  - [ ] `dockup logs` command (stream logs)
+  - [ ] `dockup metrics` command (basic stats)
+  - [ ] Better formatted output
+
+**Estimated Timeline**: 3-4 weeks  
+**Difficulty**: Easy-Medium  
+**Contributors Needed**: 1-2  
+**Priority**: High (addresses main comparison gaps)
+
+---
 
 ### Phase 1: Repository-Specific Configuration (Next Priority)
 
@@ -363,8 +420,12 @@ We welcome contributions from the community! Here's how you can help:
 
 #### Good First Issues
 
-- Documentation improvements
-- Adding examples to `config.dockup.yml`
+- **Phase 0 Tasks** (Simple-Touch Additions)
+  - Basic web UI (HTML/CSS/JS)
+  - Enhanced CLI status commands
+  - Basic monitoring dashboard
+  - Documentation improvements
+- Adding examples to `config.dockup.yml` (when Phase 1 is implemented)
 - CLI error message improvements
 - Test coverage improvements
 - Bug fixes
@@ -403,16 +464,22 @@ We welcome contributions from the community! Here's how you can help:
 
 ### High Priority (Next 2-3 Months)
 
-1. **Phase 1: Repository-Specific Configuration** ⭐ **NEXT**
-   - This is the immediate next step
+1. **Phase 0: Simple-Touch Additions** ⭐ **NEXT**
+   - Addresses main comparison gaps (Web UI, SSL, Reverse Proxy)
+   - Quick wins that improve usability
+   - Makes DockUp more competitive with alternatives
+   - Low complexity, high impact
+
+2. **Phase 1: Repository-Specific Configuration**
    - Enables users to customize deployments per repository
    - Foundation for many future features
+   - Important for advanced use cases
 
-2. **Health Checks & Rollback**
+3. **Health Checks & Rollback**
    - Critical for production deployments
    - Improves reliability
 
-3. **Deployment History**
+4. **Deployment History**
    - Essential for debugging
    - Helps track deployment issues
 
@@ -465,10 +532,13 @@ We measure success by:
 - [GITHUB_APP_SETUP.md](GITHUB_APP_SETUP.md) - GitHub App setup guide
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Troubleshooting guide
 - [HOSTING.md](HOSTING.md) - Hosting instructions
+- [FEATURES.md](FEATURES.md) - Comprehensive feature list
+- [USERS.md](USERS.md) - User showcase
+- [docs/](docs/) - Additional documentation and comparisons
 
 ---
 
 **Last Updated**: 2024  
 **Current Version**: v1.0.21  
-**Maintainer**: [Your GitHub Username]
+**Maintainer**: [Moe1211]
 

@@ -3,11 +3,13 @@
 This file contains project-specific rules for Cursor AI assistant.
 
 ## Project Overview
+
 DockUp is a zero-bloat PaaS solution that automatically deploys Docker Compose applications from GitHub to VPS.
 
 ## Code Style
 
 ### Go Files
+
 - Follow standard Go formatting (gofmt)
 - Use goimports for import organization
 - Handle all errors explicitly
@@ -16,6 +18,7 @@ DockUp is a zero-bloat PaaS solution that automatically deploys Docker Compose a
 - See `.cursor/rules-go.go` for detailed rules
 
 ### Shell Scripts
+
 - Use `#!/bin/bash` shebang
 - Always use `set -e`
 - Quote all variables
@@ -23,6 +26,7 @@ DockUp is a zero-bloat PaaS solution that automatically deploys Docker Compose a
 - See `.cursor/rules-shell.sh` for detailed rules
 
 ### Markdown Files
+
 - Use clear headings
 - Include code examples
 - Keep documentation up to date
@@ -31,12 +35,14 @@ DockUp is a zero-bloat PaaS solution that automatically deploys Docker Compose a
 ## Architecture
 
 ### Key Components
+
 - `main.go` - Go agent (server-side)
 - `dockup` - Bash CLI (client-side)
 - `/etc/dockup/registry.json` - App registry
 - `/opt/dockup/apps/` - App directories
 
 ### Important Paths
+
 - Agent config: `/etc/dockup/registry.json`
 - GitHub App config: `/etc/dockup/github-app.json`
 - App directories: `/opt/dockup/apps/{app-name}`
@@ -45,25 +51,32 @@ DockUp is a zero-bloat PaaS solution that automatically deploys Docker Compose a
 ## Development Workflow
 
 ### Before Committing
+
 1. Run `make check` or `make pre-commit`
 2. Ensure all tests pass
 3. Format code with `make format`
 4. Update documentation if needed
 
 ### Testing
+
 - Run `make test` for Go tests
 - Test CLI commands manually
 - Verify deployment flow end-to-end
 
 ### Documentation
+
 - Update README.md for user-facing changes
 - Update ROADMAP.md when completing tasks
 - Update FEATURES.md when adding features
+- Update MARKETING.md when messaging changes
+- Update LAUNCH_CHECKLIST.md when launch strategy changes
+- Update docs/ comparison guides when features are added
 - Keep all docs in sync
 
 ## Common Tasks
 
 ### Adding a New Feature
+
 1. Create feature branch
 2. Implement feature
 3. Add tests
@@ -72,6 +85,7 @@ DockUp is a zero-bloat PaaS solution that automatically deploys Docker Compose a
 6. Submit PR
 
 ### Fixing Bugs
+
 1. Reproduce the issue
 2. Write a test that fails
 3. Fix the bug
@@ -79,26 +93,33 @@ DockUp is a zero-bloat PaaS solution that automatically deploys Docker Compose a
 5. Update documentation if needed
 
 ### Updating Documentation
+
 - Keep README.md up to date
 - Update relevant guides
 - Add examples for new features
 - Check all links work
+- Update comparison guides in docs/ when features change
+- Update content templates in docs/ based on feedback
+- Keep marketing materials current
 
 ## Best Practices
 
 ### Error Handling
+
 - Always handle errors explicitly
 - Provide clear error messages
 - Log errors with context
 - Don't silently fail
 
 ### Security
+
 - Validate all user input
 - Use constant-time comparisons for secrets
 - Never log sensitive information
 - Validate webhook signatures
 
 ### Performance
+
 - Cache GitHub tokens
 - Use deployment locks
 - Optimize Docker builds
@@ -107,23 +128,46 @@ DockUp is a zero-bloat PaaS solution that automatically deploys Docker Compose a
 ## File-Specific Rules
 
 ### .sh files
+
 See `.cursor/rules-shell.sh`
 
 ### .go files
+
 See `.cursor/rules-go.go`
 
 ### .md files
+
 See `.cursor/rules-markdown.md`
 
 ### docs/ directory
+
 See `.cursor/rules-docs.md`
 
+- Contains comparison guides, content templates, and submission guides
+- Update comparison guides when features are added
+- Keep content templates current with platform best practices
+
+### social/ directory
+
+- Contains demo assets and awareness strategy documents
+- Demo GIFs in `social/demos/`
+- Awareness strategies in `social/awareness/`
+- See `social/README.md` for structure
+
+### Marketing Files
+
+- `MARKETING.md` - Messaging framework and marketing guide
+- `LAUNCH_CHECKLIST.md` - Week-by-week launch sequence
+- Update when messaging or strategy changes
+
 ### ROADMAP.md
+
 See `.cursor/rules-roadmap.md`
 
 ## Pre-commit Checks
 
 Always run pre-commit checks before committing:
+
 - `make pre-commit` - Run all checks
 - `make format` - Format code
 - `make lint` - Run linters
@@ -132,8 +176,12 @@ Always run pre-commit checks before committing:
 ## Questions?
 
 Refer to:
+
 - README.md for user documentation
 - ROADMAP.md for project roadmap
 - FEATURES.md for feature list
 - TROUBLESHOOTING.md for common issues
-
+- MARKETING.md for messaging and marketing strategy
+- LAUNCH_CHECKLIST.md for launch sequence
+- docs/README.md for additional documentation
+- social/README.md for social content structure

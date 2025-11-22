@@ -2,6 +2,44 @@
 
 A minimal, zero-dependency PaaS solution that automatically deploys your Docker Compose applications from GitHub to your VPS.
 
+**Save 5-200 minutes per day on deployments.** Push to GitHub, and DockUp handles the rest automatically.
+
+## Why DockUp?
+
+### The Problem
+Every deployment requires:
+1. SSH into VPS
+2. Navigate to app directory
+3. `git pull`
+4. `docker compose build` (2-5 minutes)
+5. `docker compose up -d`
+6. Check logs
+7. Repeat 5-10x per day
+
+**Time wasted:** 20-30 minutes per deployment × 5-10 deployments = **100-200 minutes/day**
+
+### The Solution
+With DockUp, you just:
+1. `git push`
+
+**Time saved:** 100% of deployment time = **5-200 minutes per day**
+
+### Who is DockUp For?
+
+- **Solo Developers** deploying 5-10 times per day
+- **Small Teams** needing automation without Kubernetes complexity
+- **Self-Hosters** wanting Heroku-like deployments on their VPS
+- **Anyone** tired of manual deployment workflows
+
+### Key Benefits
+
+- ⚡ **Save Time**: 5-200 minutes per day on deployments
+- 🚀 **One Command**: `dockup deploy` - that's it
+- 📦 **Zero-Bloat**: Single Go binary, no dependencies
+- 💰 **Free**: Self-hosted, no monthly costs
+- 🔒 **Secure**: HMAC validation, GitHub App authentication
+- 🎯 **Simple**: 2-minute setup, works out of the box
+
 ## Features
 
 - **Zero Dependencies**: Single Go binary agent, no external dependencies
@@ -277,7 +315,7 @@ dockup/
 ├── main.go           # Go agent source code
 ├── dockup            # CLI script
 ├── install.sh        # Bootstrap installer (one-liner)
-├── index.html           # Documentation page for hosting
+├── social/index.html    # Documentation page for hosting
 ├── setup-domain.sh      # Helper script to configure domain
 ├── HOSTING.md           # Hosting instructions
 ├── GITHUB_APP_SETUP.md  # GitHub App setup guide
@@ -392,10 +430,47 @@ ssh user@vps-ip "journalctl -u dockup -n 50"
 3. Ensure webhook is configured for "push" events
 4. Check GitHub webhook delivery logs
 
+## DockUp vs Alternatives
+
+| Feature | DockUp | Heroku | Railway | Fly.io | Kubernetes |
+|---------|--------|--------|---------|--------|-------------|
+| **Cost** | Free (self-hosted) | $7-25/month | $5-20/month | $1.94/month+ | Varies |
+| **Setup Time** | 2 minutes | 5 minutes | 5 minutes | 10 minutes | Days |
+| **Dependencies** | Zero (single binary) | Managed | Managed | Managed | Many |
+| **Self-Hosted** | ✅ Yes | ❌ No | ❌ No | ❌ No | ✅ Yes |
+| **Docker Compose** | ✅ Native | ❌ No | ⚠️ Limited | ⚠️ Limited | ⚠️ Complex |
+| **Multi-App** | ✅ Unlimited | ⚠️ Per app | ⚠️ Per app | ⚠️ Per app | ✅ Yes |
+| **Complexity** | ⭐ Simple | ⭐⭐ Medium | ⭐⭐ Medium | ⭐⭐⭐ High | ⭐⭐⭐⭐⭐ Very High |
+| **Vendor Lock-in** | ❌ None | ✅ High | ✅ High | ✅ High | ❌ None |
+| **Control** | ✅ Full | ⚠️ Limited | ⚠️ Limited | ⚠️ Limited | ✅ Full |
+
+### When to Use DockUp
+
+✅ **Choose DockUp if:**
+- You have a VPS and want to use it
+- You deploy Docker Compose applications
+- You want zero monthly costs
+- You value simplicity over features
+- You deploy 5+ times per day
+- You want full control
+
+❌ **Consider alternatives if:**
+- You need managed infrastructure
+- You want add-ons ecosystem (Heroku)
+- You need multi-region deployments (future feature)
+- You require enterprise support
+- You prefer managed services
+
 ## Roadmap & Features
 
 - **[ROADMAP.md](ROADMAP.md)** - Detailed roadmap with upcoming features and contribution guide
 - **[FEATURES.md](FEATURES.md)** - Comprehensive list of all current features
+
+## Showcase
+
+See [USERS.md](USERS.md) for projects and companies using DockUp in production.
+
+**Using DockUp?** We'd love to feature your project! See [USERS.md](USERS.md) for how to add your project.
 
 ## Contributing
 
