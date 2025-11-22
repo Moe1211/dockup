@@ -38,8 +38,12 @@ ORIGINAL_DIR=$(cd "$ORIGINAL_DIR" 2>/dev/null && pwd) || {
 
 # Temporary directory
 TMP_DIR=$(mktemp -d)
-# Note: We use 'exec' later which replaces the shell process, so EXIT trap won't run
-# We'll clean up explicitly before exec where possible, or rely on system tmp cleanup
+# Cleanup function for temp directory
+cleanup_temp_dir() {
+    rm -rf "$TMP_DIR" 2>/dev/null || true
+}
+# Set trap for cleanup (will work for normal exits, but not for exec)
+trap cleanup_temp_dir EXIT
 
 cd "$TMP_DIR"
 
@@ -88,7 +92,8 @@ if [ "$1" = "setup" ]; then
     # Stay in temp dir for setup (needs main.go to build)
     cd "$TMP_DIR"
     # Note: exec replaces shell process, so trap won't run
-    # Temp dir cleanup will happen on system reboot or via tmpwatch
+    # Start background cleanup process before exec
+    (sleep 1; rm -rf "$TMP_DIR" 2>/dev/null || true) &
     exec ./dockup "$@"
 else
     # Change back to original directory for init/deploy (needs git context)
@@ -113,7 +118,14 @@ else
     fi
     # Clean up main.go before exec (we don't need it for init/deploy)
     # Note: exec replaces shell process, so trap won't run
-    # We keep dockup script as it's needed for exec
+    # Copy dockup script to separate temp file so we can clean up TMP_DIR
     rm -f "$TMP_DIR/main.go" 2>/dev/null || true
-    exec "$TMP_DIR/dockup" "$@"
+    DOCKUP_SCRIPT_TMP=$(mktemp)
+    cp "$TMP_DIR/dockup" "$DOCKUP_SCRIPT_TMP"
+    chmod +x "$DOCKUP_SCRIPT_TMP"
+    # Clean up TMP_DIR before exec (we have dockup script copied)
+    rm -rf "$TMP_DIR" 2>/dev/null || true
+    # Start background cleanup for the copied script (after exec replaces process)
+    (sleep 1; rm -f "$DOCKUP_SCRIPT_TMP" 2>/dev/null || true) &
+    exec "$DOCKUP_SCRIPT_TMP" "$@"
 fi

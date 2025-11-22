@@ -28,30 +28,13 @@ Validates version consistency across DockUp files.
 ./scripts/check-version.sh
 ```
 
-### `record-demo.sh`
-Helper script to record DockUp demo GIFs using various tools (VHS, asciinema, ttyrec).
+### Demo Recording Scripts
 
-**Usage:**
-```bash
-# Using VHS (recommended - scripted)
-./scripts/record-demo.sh vhs demo.gif
-
-# Using asciinema (manual recording)
-./scripts/record-demo.sh asciinema demo.gif
-
-# Using ttyrec (simple)
-./scripts/record-demo.sh ttyrec demo.gif
-```
-
-See `create-demo-gif.md` for detailed instructions.
-
-### `demo.tape`
-VHS script for automated demo recording. Edit this file to customize the demo flow.
-
-**Usage:**
-```bash
-vhs scripts/demo.tape
-```
+Demo recording scripts have been moved to `social/demos/`. See:
+- `social/demos/record-demo.sh` - Helper script to record DockUp demo GIFs
+- `social/demos/demo.tape` - VHS script for automated demo recording
+- `social/demos/create-demo-gif.md` - Detailed instructions
+- `social/demos/DEMO-QUICKSTART.md` - Quick start guide
 
 ### `post-commit-tag.sh`
 Automatically creates a git tag when `DOCKUP_VERSION` is updated in the `dockup` file.
