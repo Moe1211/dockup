@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.23"
+DOCKUP_VERSION="1.0.25"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -1552,11 +1552,276 @@ cmd_list() {
     done
 }
 
+# --- Interactive Menu Functions ---
+
+# Prompt for remote host input
+prompt_remote() {
+    local prompt_text="$1"
+    local default_remote="$2"
+    
+    if [ -n "$default_remote" ]; then
+        echo -e "${BLUE}$prompt_text${NC} (default: $default_remote)"
+        read -p "Remote host (user@host): " REMOTE_INPUT
+        REMOTE_INPUT="${REMOTE_INPUT:-$default_remote}"
+    else
+        echo -e "${BLUE}$prompt_text${NC}"
+        read -p "Remote host (user@host): " REMOTE_INPUT
+    fi
+    
+    if [ -z "$REMOTE_INPUT" ]; then
+        echo -e "${RED}❌ Remote host is required${NC}"
+        return 1
+    fi
+    
+    echo "$REMOTE_INPUT"
+}
+
+# Get list of apps from a remote (for selection)
+get_apps_from_remote() {
+    local remote="$1"
+    local apps=()
+    
+    # Check SSH connectivity
+    if ! ssh $remote "echo test" >/dev/null 2>&1; then
+        return 1
+    fi
+    
+    # Check if registry exists
+    if ! ssh $remote "test -f /etc/dockup/registry.json" 2>/dev/null; then
+        return 1
+    fi
+    
+    # Get app names
+    while IFS= read -r line; do
+        [ -n "$line" ] && apps+=("$line")
+    done < <(ssh $remote "jq -r 'keys[]' /etc/dockup/registry.json" 2>/dev/null)
+    
+    # Output apps (one per line for select menu)
+    printf '%s\n' "${apps[@]}"
+}
+
+# Interactive app selection
+select_app() {
+    local remote="$1"
+    local apps=()
+    
+    # Try to get apps from remote
+    while IFS= read -r line; do
+        [ -n "$line" ] && apps+=("$line")
+    done < <(get_apps_from_remote "$remote" 2>/dev/null)
+    
+    # If no apps found, try to detect from git context
+    if [ ${#apps[@]} -eq 0 ]; then
+        if git rev-parse --show-toplevel > /dev/null 2>&1; then
+            local detected_app=$(basename `git rev-parse --show-toplevel`)
+            echo -e "${YELLOW}⚠️  No apps found on remote. Using detected app: $detected_app${NC}"
+            echo "$detected_app"
+            return 0
+        else
+            echo -e "${YELLOW}⚠️  No apps found and not in a git repository${NC}"
+            read -p "Enter app name: " APP_INPUT
+            if [ -z "$APP_INPUT" ]; then
+                return 1
+            fi
+            echo "$APP_INPUT"
+            return 0
+        fi
+    fi
+    
+    # If only one app, return it
+    if [ ${#apps[@]} -eq 1 ]; then
+        echo "${apps[0]}"
+        return 0
+    fi
+    
+    # Multiple apps - show selection menu
+    echo ""
+    echo -e "${BLUE}Select an app:${NC}"
+    echo ""
+    
+    PS3="Select app (1-${#apps[@]}): "
+    select app in "${apps[@]}" "Cancel"; do
+        if [ "$app" = "Cancel" ]; then
+            return 1
+        elif [ -n "$app" ]; then
+            echo "$app"
+            return 0
+        else
+            echo -e "${RED}Invalid selection${NC}"
+        fi
+    done
+}
+
+# Interactive main menu
+interactive_menu() {
+    while true; do
+        print_version
+        echo ""
+        echo -e "${GREEN}🚀 DockUp Interactive CLI${NC}"
+        echo ""
+        echo -e "${BLUE}Select a command:${NC}"
+        echo ""
+        
+        # Command options with descriptions
+        local commands=(
+            "deploy:Deploy your app (recommended - handles setup + init + deploy)"
+            "setup:One-time VPS setup (install DockUp agent)"
+            "init:Register repository (without deploying)"
+            "list:List all registered apps"
+            "disconnect:Unlink project from DockUp (keeps app running)"
+            "remove:Delete project completely"
+            "configure-github-app:Configure GitHub App credentials"
+            "version:Show version information"
+            "help:Show help message"
+            "exit:Exit interactive mode"
+        )
+        
+        # Extract command names for select menu
+        local cmd_names=()
+        for cmd_entry in "${commands[@]}"; do
+            IFS=':' read -r cmd_name cmd_desc <<< "$cmd_entry"
+            cmd_names+=("$cmd_name")
+        done
+        
+        # Display menu
+        PS3="Select command (1-${#cmd_names[@]}): "
+        select choice in "${cmd_names[@]}"; do
+            if [ -z "$choice" ]; then
+                echo -e "${RED}Invalid selection. Please try again.${NC}"
+                echo ""
+                break
+            fi
+            
+            # Handle special cases
+            case "$choice" in
+                "exit")
+                    echo -e "${BLUE}Goodbye!${NC}"
+                    exit 0
+                    ;;
+                "help")
+                    echo ""
+                    echo "Usage: dockup user@host {setup|init|deploy|disconnect|remove|list|configure-github-app|version} [options]"
+                    echo ""
+                    echo "Commands:"
+                    echo ""
+                    echo -e "${GREEN}  deploy${NC}     - Unified command (RECOMMENDED)"
+                    echo "     Automatically handles: setup + init + deploy"
+                    echo ""
+                    echo -e "${YELLOW}  setup${NC}      - One-time VPS setup"
+                    echo "     Installs DockUp agent on your VPS"
+                    echo ""
+                    echo -e "${YELLOW}  init${NC}       - Register repository"
+                    echo "     Registers your repo with DockUp (without deploying)"
+                    echo ""
+                    echo -e "${BLUE}  list${NC}        - List registered apps"
+                    echo "     Shows all apps registered in DockUp registry"
+                    echo ""
+                    echo -e "${BLUE}  disconnect${NC}  - Unlink project from DockUp"
+                    echo "     Removes webhook and registry entry, keeps app directory"
+                    echo ""
+                    echo -e "${RED}  remove${NC}      - Delete project completely"
+                    echo "     Stops containers, removes webhook, deletes app directory"
+                    echo ""
+                    echo -e "${BLUE}  configure-github-app${NC}  - Configure GitHub App credentials"
+                    echo "     Configures GitHub App for repository access"
+                    echo ""
+                    echo -e "${BLUE}💡 Tip: Most users should use 'deploy' - it does everything!${NC}"
+                    echo ""
+                    echo -e "${YELLOW}Press Enter to return to menu...${NC}"
+                    read
+                    break
+                    ;;
+                "version")
+                    cmd_version
+                    echo ""
+                    echo -e "${YELLOW}Press Enter to return to menu...${NC}"
+                    read
+                    break
+                    ;;
+            esac
+            
+            # Commands that need remote host
+            local remote=""
+            case "$choice" in
+                "setup"|"init"|"deploy"|"list"|"disconnect"|"remove"|"configure-github-app")
+                    remote=$(prompt_remote "Enter remote host" "")
+                    if [ -z "$remote" ] || [ $? -ne 0 ]; then
+                        echo -e "${RED}❌ Remote host is required${NC}"
+                        echo ""
+                        echo -e "${YELLOW}Press Enter to return to menu...${NC}"
+                        read
+                        break
+                    fi
+                    ;;
+            esac
+            
+            # Commands that need app selection
+            local app_name=""
+            case "$choice" in
+                "disconnect"|"remove")
+                    app_name=$(select_app "$remote")
+                    if [ -z "$app_name" ] || [ $? -ne 0 ]; then
+                        echo -e "${YELLOW}Cancelled${NC}"
+                        echo ""
+                        echo -e "${YELLOW}Press Enter to return to menu...${NC}"
+                        read
+                        break
+                    fi
+                    ;;
+            esac
+            
+            # Execute the selected command
+            echo ""
+            case "$choice" in
+                "setup")
+                    cmd_setup "$remote"
+                    ;;
+                "init")
+                    cmd_init "$remote"
+                    ;;
+                "deploy")
+                    # Ask about rebuild flag
+                    echo -e "${BLUE}Force rebuild?${NC}"
+                    read -p "Rebuild images even if unchanged? (y/N): " REBUILD_INPUT
+                    if [ "$REBUILD_INPUT" = "y" ] || [ "$REBUILD_INPUT" = "Y" ]; then
+                        cmd_deploy "$remote" "--rebuild"
+                    else
+                        cmd_deploy "$remote"
+                    fi
+                    ;;
+                "list")
+                    cmd_list "$remote"
+                    ;;
+                "disconnect")
+                    cmd_disconnect "$remote" "$app_name"
+                    ;;
+                "remove")
+                    cmd_remove "$remote" "$app_name"
+                    ;;
+                "configure-github-app")
+                    cmd_configure_github_app "$remote"
+                    ;;
+            esac
+            
+            echo ""
+            echo -e "${YELLOW}Press Enter to return to menu...${NC}"
+            read
+            break
+        done
+    done
+}
+
 # --- Main Switch ---
 # New argument order: dockup user@host command [options]
 # Handle version command first (doesn't need remote)
 if [ "$1" = "version" ] || [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
     cmd_version
+    exit 0
+fi
+
+# Interactive mode detection: if no arguments provided, enter interactive mode
+if [ $# -eq 0 ]; then
+    interactive_menu
     exit 0
 fi
 
