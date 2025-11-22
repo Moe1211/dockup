@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.26"
+DOCKUP_VERSION="1.0.27"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -1582,19 +1582,19 @@ get_apps_from_remote() {
     local apps=()
     
     # Check SSH connectivity
-    if ! ssh $remote "echo test" >/dev/null 2>&1; then
+    if ! ssh "$remote" "echo test" >/dev/null 2>&1; then
         return 1
     fi
     
     # Check if registry exists
-    if ! ssh $remote "test -f /etc/dockup/registry.json" 2>/dev/null; then
+    if ! ssh "$remote" "test -f /etc/dockup/registry.json" 2>/dev/null; then
         return 1
     fi
     
     # Get app names
     while IFS= read -r line; do
         [ -n "$line" ] && apps+=("$line")
-    done < <(ssh $remote "jq -r 'keys[]' /etc/dockup/registry.json" 2>/dev/null)
+    done < <(ssh "$remote" "jq -r 'keys[]' /etc/dockup/registry.json" 2>/dev/null)
     
     # Output apps (one per line for select menu)
     printf '%s\n' "${apps[@]}"

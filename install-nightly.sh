@@ -38,7 +38,8 @@ ORIGINAL_DIR=$(cd "$ORIGINAL_DIR" 2>/dev/null && pwd) || {
 
 # Temporary directory
 TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
+# Note: We use 'exec' later which replaces the shell process, so EXIT trap won't run
+# We'll clean up explicitly before exec where possible, or rely on system tmp cleanup
 
 cd "$TMP_DIR"
 
@@ -86,15 +87,19 @@ fi
 if [ "$1" = "setup" ]; then
     # Stay in temp dir for setup (needs main.go to build)
     cd "$TMP_DIR"
+    # Note: exec replaces shell process, so trap won't run
+    # Temp dir cleanup will happen on system reboot or via tmpwatch
     exec ./dockup "$@"
 else
     # Change back to original directory for init/deploy (needs git context)
     if [ ! -d "$ORIGINAL_DIR" ]; then
         echo -e "${RED}❌ Error: Original directory no longer exists: $ORIGINAL_DIR${NC}"
+        rm -rf "$TMP_DIR" 2>/dev/null || true
         exit 1
     fi
     cd "$ORIGINAL_DIR" || {
         echo -e "${RED}❌ Error: Failed to change to directory: $ORIGINAL_DIR${NC}"
+        rm -rf "$TMP_DIR" 2>/dev/null || true
         exit 1
     }
     # Verify we're in a git repo (for better error message)
@@ -102,9 +107,13 @@ else
         if ! git rev-parse --show-toplevel > /dev/null 2>&1; then
             echo -e "${RED}❌ Error: Not a Git repository in: $(pwd)${NC}"
             echo -e "${YELLOW}Make sure you're running this command from inside your project's Git repository.${NC}"
+            rm -rf "$TMP_DIR" 2>/dev/null || true
             exit 1
         fi
     fi
+    # Clean up main.go before exec (we don't need it for init/deploy)
+    # Note: exec replaces shell process, so trap won't run
+    # We keep dockup script as it's needed for exec
+    rm -f "$TMP_DIR/main.go" 2>/dev/null || true
     exec "$TMP_DIR/dockup" "$@"
 fi
-
