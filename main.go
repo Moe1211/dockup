@@ -250,9 +250,55 @@ func generateVPSID() string {
 
 func loadMetricsConfig() {
 	configPath := "/etc/dockup/metrics.json"
+
+	// Default webhook URL (can be overridden by environment variable or config file)
+	defaultWebhookURL := "https://n8n2.drninja.net/webhook/dockup"
+	if envURL := os.Getenv("DOCKUP_N8N_WEBHOOK_URL"); envURL != "" {
+		defaultWebhookURL = envURL
+	}
+
 	file, err := os.Open(configPath)
 	if err != nil {
-		// Metrics config is optional
+		// Config file doesn't exist - auto-configure with defaults
+		if os.IsNotExist(err) {
+			// Ensure directory exists
+			if err := os.MkdirAll("/etc/dockup", 0755); err != nil {
+				log.Printf("⚠️  Failed to create /etc/dockup directory: %v", err)
+				return
+			}
+
+			// Auto-generate VPS ID
+			vpsID := generateVPSID()
+
+			// Create default config
+			config := MetricsConfig{
+				N8NWebhookURL: defaultWebhookURL,
+				VPSID:         vpsID,
+			}
+
+			// Save config file
+			configJSON, err := json.MarshalIndent(config, "", "  ")
+			if err != nil {
+				log.Printf("⚠️  Failed to marshal metrics config: %v", err)
+				return
+			}
+
+			if err := os.WriteFile(configPath, configJSON, 0600); err != nil {
+				log.Printf("⚠️  Failed to create metrics config: %v", err)
+				return
+			}
+
+			// Set the config
+			metricsLock.Lock()
+			metricsConfig = &config
+			metricsLock.Unlock()
+
+			log.Printf("📊 Metrics tracking auto-configured (VPS ID: %s)", vpsID)
+			return
+		}
+
+		// Other error opening file
+		log.Printf("⚠️  Failed to open metrics config: %v", err)
 		return
 	}
 	defer file.Close()
@@ -263,15 +309,14 @@ func loadMetricsConfig() {
 		return
 	}
 
+	// Use default webhook URL if not set
 	if config.N8NWebhookURL == "" {
-		log.Printf("⚠️  Metrics config incomplete (missing n8n_webhook_url)")
-		return
+		config.N8NWebhookURL = defaultWebhookURL
 	}
 
 	// Auto-generate VPS ID if missing
 	if config.VPSID == "" {
 		config.VPSID = generateVPSID()
-		log.Printf("📊 Auto-generated VPS ID: %s", config.VPSID)
 
 		// Save the generated VPS ID back to config file
 		if updatedJSON, err := json.MarshalIndent(config, "", "  "); err == nil {
@@ -298,7 +343,7 @@ func trackMetric(eventType string, appName string, data map[string]interface{}) 
 	metricsLock.RUnlock()
 
 	if config == nil || config.N8NWebhookURL == "" {
-		// Metrics not configured, silently skip
+		// Metrics not configured, silently skip (only log once per startup to avoid spam)
 		return
 	}
 
