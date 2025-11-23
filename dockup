@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.41"
+DOCKUP_VERSION="1.0.42"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -383,6 +383,95 @@ cmd_setup() {
     echo ""
 }
 
+# --- Helper: Copy .env files to VPS ---
+copy_env_files() {
+    local REMOTE="$1"
+    local APP_NAME="$2"
+    
+    # Check if app directory exists on VPS
+    if ! ssh "$REMOTE" "test -d /opt/dockup/apps/$APP_NAME" 2>/dev/null; then
+        # Directory doesn't exist yet, skip (will be created during clone)
+        return 0
+    fi
+    
+    # Check if we're in a git repository to find project root
+    local PROJECT_ROOT=""
+    if git rev-parse --show-toplevel > /dev/null 2>&1; then
+        PROJECT_ROOT=$(git rev-parse --show-toplevel)
+    else
+        PROJECT_ROOT="."
+    fi
+    
+    # Find .env files in project root
+    local env_files=()
+    if [ -f "$PROJECT_ROOT/.env" ]; then
+        env_files+=("$PROJECT_ROOT/.env")
+    fi
+    if [ -f "$PROJECT_ROOT/.env.production" ]; then
+        env_files+=("$PROJECT_ROOT/.env.production")
+    fi
+    if [ -f "$PROJECT_ROOT/.env.prod" ]; then
+        env_files+=("$PROJECT_ROOT/.env.prod")
+    fi
+    if [ -f "$PROJECT_ROOT/.env.staging" ]; then
+        env_files+=("$PROJECT_ROOT/.env.staging")
+    fi
+    
+    # If no .env files found, return early
+    if [ ${#env_files[@]} -eq 0 ]; then
+        return 0
+    fi
+    
+    # Ask user if they want to copy .env files
+    echo ""
+    echo -e "${BLUE}📋 Copy .env files using DockUp?${NC}"
+    echo -e "${YELLOW}   (We can't see your data - we simply execute the ssh copy command for you :)${NC}"
+    echo ""
+    echo -e "   Found ${#env_files[@]} .env file(s):"
+    for env_file in "${env_files[@]}"; do
+        echo -e "   - $(basename "$env_file")"
+    done
+    echo ""
+    read -p "Copy .env files to VPS? (y/N): " COPY_ENV
+    
+    if [ "$COPY_ENV" != "y" ] && [ "$COPY_ENV" != "Y" ]; then
+        return 0
+    fi
+    
+    # Ensure app directory exists on VPS
+    ssh "$REMOTE" "mkdir -p /opt/dockup/apps/$APP_NAME" 2>/dev/null || true
+    
+    # Copy each .env file
+    echo ""
+    echo -e "${BLUE}📤 Copying .env files...${NC}"
+    local success_count=0
+    local fail_count=0
+    
+    for env_file in "${env_files[@]}"; do
+        local filename=$(basename "$env_file")
+        echo -e "   Copying ${BLUE}$filename${NC}..."
+        
+        if scp -q "$env_file" "$REMOTE:/opt/dockup/apps/$APP_NAME/$filename" 2>/dev/null; then
+            echo -e "   ${GREEN}✓${NC} $filename copied successfully"
+            ((success_count++))
+        else
+            echo -e "   ${RED}✗${NC} Failed to copy $filename"
+            ((fail_count++))
+        fi
+    done
+    
+    echo ""
+    if [ $success_count -gt 0 ]; then
+        echo -e "${GREEN}✅ Successfully copied $success_count .env file(s)${NC}"
+    fi
+    if [ $fail_count -gt 0 ]; then
+        echo -e "${YELLOW}⚠️  Failed to copy $fail_count .env file(s)${NC}"
+        echo -e "${YELLOW}   You can copy them manually:${NC}"
+        echo -e "${YELLOW}   scp .env $REMOTE:/opt/dockup/apps/$APP_NAME/${NC}"
+    fi
+    echo ""
+}
+
 # --- Command: INIT (Register Repo) ---
 cmd_init() {
     # Check for updates
@@ -538,6 +627,18 @@ EOF
     echo -e "   ${BLUE}Secret:${NC}         $SECRET"
     echo -e "   ${BLUE}Events:${NC}         Just the push event"
     echo ""
+    echo -e "${YELLOW}3. Set up environment files (.env):${NC}"
+    echo "   Ensure all required .env files are present on the VPS at:"
+    echo "   /opt/dockup/apps/$APP_NAME/"
+    echo ""
+    echo "   You can copy them manually via:"
+    echo "   scp .env $REMOTE:/opt/dockup/apps/$APP_NAME/"
+    echo ""
+    echo "   ${YELLOW}⚠️  Important:${NC} Services will fail to start without required .env files!"
+    echo ""
+    
+    # Offer to copy .env files
+    copy_env_files "$REMOTE" "$APP_NAME"
     
     # Try to add webhook via GitHub App (preferred) or GitHub CLI (fallback)
     WEBHOOK_EXISTS=false
@@ -779,6 +880,14 @@ cmd_deploy() {
             exit 1
         }
         echo -e "${GREEN}   ✓ Repository registered${NC}"
+        echo ""
+        echo -e "${YELLOW}   ⚠️  Reminder:${NC} Ensure all required .env files are present on the VPS"
+        echo -e "   ${YELLOW}   Location:${NC} /opt/dockup/apps/$APP_NAME/"
+        echo -e "   ${YELLOW}   Copy via:${NC} scp .env $REMOTE:/opt/dockup/apps/$APP_NAME/"
+        echo ""
+        
+        # Offer to copy .env files
+        copy_env_files "$REMOTE" "$APP_NAME"
         
         # Get the secret for webhook setup
         SECRET=$(ssh $REMOTE "jq -r '.\"$APP_NAME\".secret' /etc/dockup/registry.json")

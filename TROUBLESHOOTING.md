@@ -220,6 +220,79 @@ ssh user@vps-ip "journalctl -u dockup -n 200 | grep -A 20 'Deploy FAILED'"
 - Projects using pre-built images (no Dockerfile needed)
 - Projects with Dockerfile (Docker Compose will build it automatically)
 
+### Go Version Compatibility Issues
+
+**Symptoms:** Build works locally but fails on VPS, or you need to downgrade Go version for deployment
+
+**Possible causes:**
+
+1. **Dockerfile specifies a different Go version** than what you're using locally
+2. **Go module requirements** differ between local and Docker build environments
+3. **Docker build cache** using an older Go version
+
+**Diagnosis:**
+
+1. Check your Dockerfile for Go version:
+
+   ```bash
+   grep -i "FROM.*golang" Dockerfile
+   ```
+
+2. Check your `go.mod` file for Go version requirement:
+
+   ```bash
+   grep "^go " go.mod
+   ```
+
+3. Compare with local Go version:
+
+   ```bash
+   go version
+   ```
+
+**Solutions:**
+
+1. **Update Dockerfile to match your Go version:**
+
+   ```dockerfile
+   # Instead of: FROM golang:1.20
+   # Use: FROM golang:1.21 (or your required version)
+   FROM golang:1.21-alpine AS builder
+   ```
+
+2. **Ensure go.mod specifies correct Go version:**
+
+   ```go
+   // go.mod
+   module your-module
+   
+   go 1.21  // Match your Dockerfile version
+   ```
+
+3. **Clear Docker build cache if needed:**
+
+   ```bash
+   # On VPS
+   ssh user@vps-ip "cd /opt/dockup/apps/your-app && docker compose build --no-cache"
+   ```
+
+4. **Use multi-stage builds** to ensure consistent Go versions:
+
+   ```dockerfile
+   FROM golang:1.21-alpine AS builder
+   WORKDIR /app
+   COPY go.mod go.sum ./
+   RUN go mod download
+   COPY . .
+   RUN go build -o /app/your-app
+   
+   FROM alpine:latest
+   COPY --from=builder /app/your-app /app/your-app
+   CMD ["/app/your-app"]
+   ```
+
+**Note:** DockUp doesn't control Go versions - it uses whatever your Dockerfile specifies. Ensure your Dockerfile's Go version matches your project's requirements.
+
 ### Repository Not Cloning
 
 **Symptoms:** "Failed to clone repository" error
