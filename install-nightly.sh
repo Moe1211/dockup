@@ -1,7 +1,7 @@
 #!/bin/bash
 # DockUp Nightly Build Installer (Interactive CLI Branch)
-# This script downloads DockUp from the feature/interactive-cli branch
-# Usage: curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/feature/interactive-cli/install-nightly.sh | bash -s -- init user@vps-ip
+# This script installs DockUp from the local codebase
+# Usage: ./install-nightly.sh init user@vps-ip
 
 set -e
 
@@ -12,18 +12,17 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Configuration - Points to feature/interactive-cli branch
-# You can override these with environment variables:
-#   DOCKUP_REPO_URL=https://raw.githubusercontent.com/Moe1211/dockup/feature/interactive-cli curl -fsSL ... | bash
-DOCKUP_REPO_URL="${DOCKUP_REPO_URL:-https://raw.githubusercontent.com/Moe1211/dockup/feature/interactive-cli}"
-DOCKUP_SCRIPT_URL="${DOCKUP_SCRIPT_URL:-$DOCKUP_REPO_URL/dockup}"
-MAIN_GO_URL="${MAIN_GO_URL:-$DOCKUP_REPO_URL/main.go}"
+# Find the DockUp project root directory
+# This script should be in the DockUp codebase root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOCKUP_ROOT="$SCRIPT_DIR"
 
-# Extract branch name from URL for display
-# URL format: https://raw.githubusercontent.com/user/repo/branch
-BRANCH_NAME=$(echo "$DOCKUP_REPO_URL" | sed -n 's|.*/\([^/]*\)$|\1|p')
-if [ -z "$BRANCH_NAME" ]; then
-    BRANCH_NAME="feature/interactive-cli"
+# Verify we're in the DockUp codebase by checking for required files
+if [ ! -f "$DOCKUP_ROOT/dockup" ] || [ ! -f "$DOCKUP_ROOT/main.go" ]; then
+    echo -e "${RED}❌ Error: Could not find DockUp files in: $DOCKUP_ROOT${NC}"
+    echo -e "${YELLOW}This script must be run from the DockUp codebase directory.${NC}"
+    echo -e "${YELLOW}Expected files: dockup, main.go${NC}"
+    exit 1
 fi
 
 # Save the original working directory (where the user ran the command)
@@ -55,37 +54,36 @@ trap cleanup_temp_dir EXIT
 cd "$TMP_DIR"
 
 echo -e "${BLUE}🚀 DockUp Nightly Build Installer${NC}"
-echo -e "${BLUE}Installing from branch: ${YELLOW}$BRANCH_NAME${NC}"
+echo -e "${BLUE}Installing from local codebase: ${YELLOW}$DOCKUP_ROOT${NC}"
 echo -e "${YELLOW}⚠️  This is a nightly build${NC}"
 echo ""
-echo -e "${BLUE}Downloading DockUp...${NC}"
+echo -e "${BLUE}Copying DockUp files...${NC}"
 
-# Download dockup script
-if ! curl -fsSL "$DOCKUP_SCRIPT_URL" -o dockup; then
-    echo -e "${RED}❌ Failed to download dockup script${NC}"
-    echo "Please check your internet connection and try again."
+# Copy dockup script from local codebase
+if ! cp "$DOCKUP_ROOT/dockup" ./dockup; then
+    echo -e "${RED}❌ Failed to copy dockup script${NC}"
     exit 1
 fi
 
 chmod +x dockup
 
-# Download main.go (needed for setup command)
-if ! curl -fsSL "$MAIN_GO_URL" -o main.go; then
-    echo -e "${RED}❌ Failed to download main.go${NC}"
+# Copy main.go (needed for setup command)
+if ! cp "$DOCKUP_ROOT/main.go" ./main.go; then
+    echo -e "${RED}❌ Failed to copy main.go${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}✅ Download complete${NC}"
+echo -e "${GREEN}✅ Copy complete${NC}"
 echo ""
 
 # Execute the command passed as arguments
 if [ $# -eq 0 ]; then
     echo -e "${YELLOW}Usage:${NC}"
-    echo "  curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/feature/interactive-cli/install-nightly.sh | bash -s -- deploy user@vps-ip"
+    echo "  ./install-nightly.sh deploy user@vps-ip"
     echo ""
     echo "  # Or use individual commands:"
-    echo "  curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/feature/interactive-cli/install-nightly.sh | bash -s -- setup user@vps-ip"
-    echo "  curl -fsSL https://raw.githubusercontent.com/Moe1211/dockup/feature/interactive-cli/install-nightly.sh | bash -s -- init user@vps-ip"
+    echo "  ./install-nightly.sh setup user@vps-ip"
+    echo "  ./install-nightly.sh init user@vps-ip"
     echo ""
     echo -e "${GREEN}Recommended: Use 'deploy' - it handles everything automatically!${NC}"
     echo ""
