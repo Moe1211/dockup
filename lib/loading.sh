@@ -23,12 +23,12 @@ start_spinner() {
     # Hide cursor
     tput civis 2>/dev/null || true
     
-    # Start spinner in background
+    # Start spinner in background, redirect to stderr to avoid conflicts with stdout
     (
         local i=0
         while true; do
             local char="${SPINNER_CHARS:$i:1}"
-            echo -ne "\r${BLUE}${char}${NC} ${SPINNER_MSG}"
+            echo -ne "\r${BLUE}${char}${NC} ${SPINNER_MSG}" >&2
             i=$(((i + 1) % ${#SPINNER_CHARS}))
             sleep 0.1
         done
@@ -40,26 +40,27 @@ start_spinner() {
 # Stop the spinner
 stop_spinner() {
     if [ -n "$SPINNER_PID" ]; then
-        kill $SPINNER_PID 2>/dev/null
-        wait $SPINNER_PID 2>/dev/null
+        # Kill spinner and wait for it to finish
+        kill $SPINNER_PID 2>/dev/null || true
+        wait $SPINNER_PID 2>/dev/null || true
         SPINNER_PID=""
     fi
     
-    # Show cursor and clear line
+    # Show cursor and clear line (redirect to stderr)
     tput cnorm 2>/dev/null || true
-    echo -ne "\r\033[K"
+    echo -ne "\r\033[K" >&2
 }
 
 # Show success message
 show_success() {
     local msg="${1:-Done}"
-    echo -e "\r${GREEN}✓${NC} ${msg}"
+    echo -e "\r${GREEN}✓${NC} ${msg}" >&2
 }
 
 # Show error message
 show_error() {
     local msg="${1:-Error}"
-    echo -e "\r${RED}✗${NC} ${msg}"
+    echo -e "\r${RED}✗${NC} ${msg}" >&2
 }
 
 # Show info message
@@ -131,5 +132,6 @@ cleanup_spinner() {
     stop_spinner
 }
 
+# Set up trap to clean up spinner on script exit
 trap cleanup_spinner EXIT INT TERM
 
