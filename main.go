@@ -157,6 +157,100 @@ func loadGitHubAppConfig() {
 	githubAppLock.Unlock()
 }
 
+// generateVPSID generates a VPS ID from system snapshot (runs on the VPS)
+func generateVPSID() string {
+	// Get timestamp
+	timestamp := time.Now().Unix()
+
+	// Get OS distribution
+	osName := "unknown"
+	if data, err := os.ReadFile("/etc/os-release"); err == nil {
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(line, "ID=") {
+				osName = strings.Trim(strings.TrimPrefix(line, "ID="), "\"")
+				osName = strings.ToLower(osName)
+				break
+			}
+		}
+	} else {
+		// Fallback to uname
+		if out, err := exec.Command("uname", "-s").Output(); err == nil {
+			osName = strings.ToLower(strings.TrimSpace(string(out)))
+		}
+	}
+
+	// Get RAM in GB
+	ramGB := "unknown"
+	if data, err := os.ReadFile("/proc/meminfo"); err == nil {
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(line, "MemTotal:") {
+				fields := strings.Fields(line)
+				if len(fields) >= 2 {
+					ramKB := 0
+					fmt.Sscanf(fields[1], "%d", &ramKB)
+					if ramKB > 0 {
+						ramGB = fmt.Sprintf("%d", (ramKB+1024*1024-1)/(1024*1024)) // Round up
+					}
+				}
+				break
+			}
+		}
+	}
+
+	// Get location/region (try metadata services)
+	location := "unknown"
+
+	// Try Hetzner metadata
+	if resp, err := http.Get("http://169.254.169.254/hetzner/v1/metadata/datacenter"); err == nil {
+		if body, err := io.ReadAll(resp.Body); err == nil {
+			location = strings.ToLower(strings.TrimSpace(string(body)))
+		}
+		resp.Body.Close()
+	}
+
+	// Try DigitalOcean metadata
+	if location == "unknown" {
+		if resp, err := http.Get("http://169.254.169.254/metadata/v1/region"); err == nil {
+			if body, err := io.ReadAll(resp.Body); err == nil {
+				location = strings.ToLower(strings.TrimSpace(string(body)))
+			}
+			resp.Body.Close()
+		}
+	}
+
+	// Try AWS metadata
+	if location == "unknown" {
+		if resp, err := http.Get("http://169.254.169.254/latest/meta-data/placement/availability-zone"); err == nil {
+			if body, err := io.ReadAll(resp.Body); err == nil {
+				location = strings.ToLower(strings.TrimSpace(string(body)))
+			}
+			resp.Body.Close()
+		}
+	}
+
+	// Fallback: use hostname
+	if location == "unknown" {
+		if hostname, err := os.Hostname(); err == nil {
+			hostname = strings.ToLower(hostname)
+			// Try to extract location pattern (e.g., fsn1, nyc1)
+			if matched := strings.Contains(hostname, "fsn") || strings.Contains(hostname, "nyc") || strings.Contains(hostname, "fra"); matched {
+				// Extract first 4 chars as location
+				if len(hostname) >= 4 {
+					location = hostname[:4]
+				} else {
+					location = hostname
+				}
+			} else {
+				location = "vps"
+			}
+		}
+	}
+
+	return fmt.Sprintf("%d-%s-%sgb-%s", timestamp, osName, ramGB, location)
+}
+
 func loadMetricsConfig() {
 	configPath := "/etc/dockup/metrics.json"
 	file, err := os.Open(configPath)
@@ -175,6 +269,19 @@ func loadMetricsConfig() {
 	if config.N8NWebhookURL == "" {
 		log.Printf("⚠️  Metrics config incomplete (missing n8n_webhook_url)")
 		return
+	}
+
+	// Auto-generate VPS ID if missing
+	if config.VPSID == "" {
+		config.VPSID = generateVPSID()
+		log.Printf("📊 Auto-generated VPS ID: %s", config.VPSID)
+
+		// Save the generated VPS ID back to config file
+		if updatedJSON, err := json.MarshalIndent(config, "", "  "); err == nil {
+			if err := os.WriteFile(configPath, updatedJSON, 0600); err == nil {
+				log.Printf("💾 Saved auto-generated VPS ID to config")
+			}
+		}
 	}
 
 	metricsLock.Lock()
