@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.33"
+DOCKUP_VERSION="1.0.35"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -495,6 +495,21 @@ cmd_init() {
     
     echo ""
     echo -e "${GREEN}✅ App registered successfully!${NC}"
+    
+    # Track app registration metric
+    VPS_IP="${REMOTE#*@}"
+    METRICS_PAYLOAD=$(cat <<EOF
+{
+  "event_type": "app_registered",
+  "app_name": "$APP_NAME",
+  "data": {
+    "branch": "$BRANCH"
+  }
+}
+EOF
+)
+    curl -s -X POST -H "Content-Type: application/json" -d "$METRICS_PAYLOAD" "http://${VPS_IP}:8080/metrics/track" > /dev/null 2>&1 || true
+    
     echo ""
     echo -e "${YELLOW}📋 Next Steps:${NC}"
     echo ""
@@ -1310,6 +1325,185 @@ JSONEOF
     fi
 }
 
+# --- Command: CONFIGURE-METRICS (Configure metrics tracking) ---
+cmd_configure_metrics() {
+    # Check for updates
+    check_for_updates
+    
+    REMOTE="$1"
+    shift
+    
+    # Parse arguments
+    N8N_WEBHOOK_URL=""
+    VPS_ID=""
+    
+    ARGS=("$@")
+    i=0
+    while [ $i -lt ${#ARGS[@]} ]; do
+        case "${ARGS[$i]}" in
+            --n8n-webhook-url)
+                N8N_WEBHOOK_URL="${ARGS[$((i+1))]}"
+                i=$((i+2))
+                ;;
+            --vps-id)
+                VPS_ID="${ARGS[$((i+1))]}"
+                i=$((i+2))
+                ;;
+            *)
+                i=$((i+1))
+                ;;
+        esac
+    done
+    
+    if [ -z "$REMOTE" ]; then 
+        echo -e "${RED}Usage: ./dockup user@host configure-metrics [--n8n-webhook-url URL] [--vps-id ID]${NC}"
+        echo ""
+        echo "This command configures metrics tracking for DockUp."
+        echo ""
+        echo "Options:"
+        echo "  --n8n-webhook-url URL  n8n webhook URL for metrics (required)"
+        echo "  --vps-id ID            Optional unique identifier for this VPS"
+        echo ""
+        echo "Example:"
+        echo "  dockup user@vps-ip configure-metrics"
+        echo "  dockup user@vps-ip configure-metrics --n8n-webhook-url https://n8n.example.com/webhook/dockup"
+        exit 1
+    fi
+
+    print_version
+    echo ""
+    echo -e "${GREEN}📊 Configuring metrics tracking on $REMOTE...${NC}"
+    echo ""
+
+    # Check if already configured
+    EXISTING_CONFIG=$(ssh $REMOTE "test -f /etc/dockup/metrics.json && jq -r '.n8n_webhook_url // empty' /etc/dockup/metrics.json 2>/dev/null" || echo "")
+    if [ -n "$EXISTING_CONFIG" ] && [ "$EXISTING_CONFIG" != "null" ] && [ "$EXISTING_CONFIG" != "" ]; then
+        EXISTING_VPS_ID=$(ssh $REMOTE "jq -r '.vps_id // empty' /etc/dockup/metrics.json 2>/dev/null" || echo "")
+        echo -e "${YELLOW}⚠️  Metrics tracking is already configured${NC}"
+        echo -e "${YELLOW}   Current webhook URL: $EXISTING_CONFIG${NC}"
+        if [ -n "$EXISTING_VPS_ID" ] && [ "$EXISTING_VPS_ID" != "null" ]; then
+            echo -e "${YELLOW}   Current VPS ID: $EXISTING_VPS_ID${NC}"
+        fi
+        echo ""
+        read -p "Do you want to update it? (y/n): " UPDATE_CONFIRM
+        if [ "$UPDATE_CONFIRM" != "y" ] && [ "$UPDATE_CONFIRM" != "Y" ]; then
+            echo -e "${YELLOW}Cancelled${NC}"
+            exit 0
+        fi
+        echo ""
+    fi
+
+    # Get n8n webhook URL
+    if [ -z "$N8N_WEBHOOK_URL" ]; then
+        echo -e "${YELLOW}📋 n8n Webhook URL Required${NC}"
+        echo ""
+        echo "This is the webhook URL from your n8n workflow that will receive metrics events."
+        echo "The webhook should be configured to store events in your Supabase database."
+        echo ""
+        read -p "Enter n8n webhook URL: " N8N_WEBHOOK_URL
+        if [ -z "$N8N_WEBHOOK_URL" ]; then
+            echo -e "${RED}❌ n8n webhook URL is required${NC}"
+            exit 1
+        fi
+    fi
+
+    # Validate URL format
+    if ! echo "$N8N_WEBHOOK_URL" | grep -qE "^https?://"; then
+        echo -e "${RED}❌ Invalid URL format${NC}"
+        echo -e "${YELLOW}   URL must start with http:// or https://${NC}"
+        exit 1
+    fi
+
+    # Get VPS ID (optional)
+    if [ -z "$VPS_ID" ]; then
+        echo ""
+        echo -e "${YELLOW}📝 VPS ID (Optional)${NC}"
+        echo ""
+        echo "A unique identifier for this VPS instance (optional)."
+        echo "This helps track metrics per-VPS in addition to aggregate statistics."
+        echo "You can use any identifier (e.g., hostname, IP, or custom ID)."
+        echo ""
+        read -p "Enter VPS ID (or press Enter to skip): " VPS_ID
+    fi
+
+    echo ""
+    echo -e "${BLUE}✓ Validating configuration...${NC}"
+
+    # Create JSON content
+    if [ -n "$VPS_ID" ]; then
+        JSON_CONTENT=$(cat <<EOF
+{
+  "n8n_webhook_url": "$N8N_WEBHOOK_URL",
+  "vps_id": "$VPS_ID"
+}
+EOF
+)
+    else
+        JSON_CONTENT=$(cat <<EOF
+{
+  "n8n_webhook_url": "$N8N_WEBHOOK_URL"
+}
+EOF
+)
+    fi
+
+    # Upload and save on VPS
+    echo -e "${BLUE}📦 Saving metrics configuration...${NC}"
+    ssh $REMOTE "
+        mkdir -p /etc/dockup
+        cat > /tmp/metrics.json <<'JSONEOF'
+$JSON_CONTENT
+JSONEOF
+        mv /tmp/metrics.json /etc/dockup/metrics.json
+        chmod 600 /etc/dockup/metrics.json
+        echo '   >> Configuration saved to /etc/dockup/metrics.json'
+    " || {
+        echo -e "${RED}❌ Failed to save configuration${NC}"
+        exit 1
+    }
+
+    # Verify it was saved correctly
+    VERIFIED=$(ssh $REMOTE "jq -r '.n8n_webhook_url' /etc/dockup/metrics.json 2>/dev/null" || echo "")
+    
+    if [ -n "$VERIFIED" ]; then
+        echo -e "${GREEN}✅ Configuration saved successfully!${NC}"
+        echo ""
+        echo -e "${YELLOW}📋 Configuration Summary:${NC}"
+        echo "  n8n Webhook URL: $N8N_WEBHOOK_URL"
+        if [ -n "$VPS_ID" ]; then
+            echo "  VPS ID: $VPS_ID"
+        else
+            echo "  VPS ID: (not set)"
+        fi
+        echo "  Location: /etc/dockup/metrics.json"
+        echo ""
+        
+        # Reload agent to pick up new config
+        echo -e "${BLUE}🔄 Reloading DockUp agent...${NC}"
+        RELOAD_OUTPUT=$(ssh $REMOTE "curl -s -X POST http://localhost:8080/reload 2>&1" || echo "")
+        if echo "$RELOAD_OUTPUT" | grep -q "reloaded\|200"; then
+            echo -e "${GREEN}   ✓ Agent reloaded${NC}"
+        else
+            echo -e "${YELLOW}   ⚠️  Reload endpoint not available, restarting agent...${NC}"
+            ssh $REMOTE "systemctl restart dockup" || true
+            sleep 2
+            echo -e "${GREEN}   ✓ Agent restarted${NC}"
+        fi
+        echo ""
+        
+        echo -e "${GREEN}🎉 Metrics tracking enabled!${NC}"
+        echo ""
+        echo -e "${YELLOW}Next Steps:${NC}"
+        echo "  Metrics will now be tracked for all deployments and app operations."
+        echo "  Make sure your n8n workflow is configured to receive and store these events."
+        echo ""
+    else
+        echo -e "${RED}❌ Failed to verify configuration${NC}"
+        echo -e "${YELLOW}   Check that the file was created correctly on the VPS${NC}"
+        exit 1
+    fi
+}
+
 # --- Command: REMOVE (Delete project completely) ---
 cmd_remove() {
     # Check for updates
@@ -1449,6 +1643,18 @@ cmd_remove() {
     }
     echo -e "${GREEN}   ✓ Directory removed${NC}"
     echo ""
+
+    # Track app removal metric
+    VPS_IP="${REMOTE#*@}"
+    METRICS_PAYLOAD=$(cat <<EOF
+{
+  "event_type": "app_removed",
+  "app_name": "$APP_NAME",
+  "data": {}
+}
+EOF
+)
+    curl -s -X POST -H "Content-Type: application/json" -d "$METRICS_PAYLOAD" "http://${VPS_IP}:8080/metrics/track" > /dev/null 2>&1 || true
 
     echo -e "${GREEN}✅ Completely removed '$APP_NAME' from DockUp${NC}"
     echo ""
@@ -1900,6 +2106,9 @@ interactive_menu() {
                 "configure-github-app")
                     cmd_configure_github_app "$remote"
                     ;;
+                "configure-metrics")
+                    cmd_configure_metrics "$remote"
+                    ;;
             esac
             
             echo ""
@@ -1940,9 +2149,10 @@ case "$COMMAND" in
     remove)     shift; shift; cmd_remove "$REMOTE" "$@" ;;
     list)       shift; shift; cmd_list "$REMOTE" ;;
     configure-github-app) shift; shift; cmd_configure_github_app "$REMOTE" "$@" ;;
+    configure-metrics) shift; shift; cmd_configure_metrics "$REMOTE" "$@" ;;
     *)
         # Handle old format for backward compatibility (if first arg looks like a command)
-        if [ "$1" = "setup" ] || [ "$1" = "init" ] || [ "$1" = "deploy" ] || [ "$1" = "disconnect" ] || [ "$1" = "remove" ] || [ "$1" = "configure-github-app" ] || [ "$1" = "list" ]; then
+        if [ "$1" = "setup" ] || [ "$1" = "init" ] || [ "$1" = "deploy" ] || [ "$1" = "disconnect" ] || [ "$1" = "remove" ] || [ "$1" = "configure-github-app" ] || [ "$1" = "configure-metrics" ] || [ "$1" = "list" ]; then
             echo -e "${YELLOW}⚠️  Deprecated argument order detected${NC}"
             echo -e "${YELLOW}   Old format: dockup $1 user@host${NC}"
             echo -e "${YELLOW}   New format: dockup user@host $1${NC}"
@@ -1953,7 +2163,7 @@ case "$COMMAND" in
         
         # Show help
         if [ -z "$1" ] || [ "$1" = "help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-            echo "Usage: dockup user@host {setup|init|deploy|disconnect|remove|list|configure-github-app|version} [options]"
+            echo "Usage: dockup user@host {setup|init|deploy|disconnect|remove|list|configure-github-app|configure-metrics|version} [options]"
             echo ""
             echo "Commands:"
             echo ""
@@ -1995,12 +2205,17 @@ case "$COMMAND" in
             echo "     Use when: First time setup or updating credentials"
             echo "     Example: dockup user@vps-ip configure-github-app"
             echo ""
+            echo -e "${BLUE}  configure-metrics${NC}     - Configure metrics tracking"
+            echo "     Configures metrics tracking via n8n webhook"
+            echo "     Use when: You want to track deployment metrics"
+            echo "     Example: dockup user@vps-ip configure-metrics"
+            echo ""
             echo -e "${BLUE}💡 Tip: Most users should use 'deploy' - it does everything!${NC}"
         else
             # Invalid command or missing remote
             if [ -z "$REMOTE" ]; then
                 echo -e "${RED}Error: Missing remote host${NC}"
-                echo "Usage: dockup user@host {setup|init|deploy|disconnect|remove|list|configure-github-app|version} [options]"
+                echo "Usage: dockup user@host {setup|init|deploy|disconnect|remove|list|configure-github-app|configure-metrics|version} [options]"
             elif [ -z "$COMMAND" ]; then
                 echo -e "${RED}Error: Missing command${NC}"
                 echo "Usage: dockup user@host {setup|init|deploy|disconnect|remove|list|configure-github-app|version} [options]"

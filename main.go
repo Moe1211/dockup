@@ -41,6 +41,12 @@ type GitHubAppConfig struct {
 	PrivateKey     string `json:"private_key"`
 }
 
+// MetricsConfig structure for metrics tracking
+type MetricsConfig struct {
+	N8NWebhookURL string `json:"n8n_webhook_url"`
+	VPSID         string `json:"vps_id,omitempty"`
+}
+
 // Token cache for installation tokens
 type tokenCache struct {
 	token     string
@@ -56,6 +62,8 @@ var (
 	githubAppConfig   *GitHubAppConfig
 	githubAppLock     sync.RWMutex
 	installationToken tokenCache
+	metricsConfig     *MetricsConfig
+	metricsLock       sync.RWMutex
 )
 
 func main() {
@@ -77,12 +85,16 @@ func main() {
 	// Load GitHub App config (optional, but recommended)
 	loadGitHubAppConfig()
 
+	// Load metrics config (optional)
+	loadMetricsConfig()
+
 	// Routes
 	http.HandleFunc("/webhook/github", handleGithub)
 	http.HandleFunc("/webhook/manual", handleManual)
 	http.HandleFunc("/reload", handleReload)
 	http.HandleFunc("/github/token-url", handleGitHubTokenURL)
 	http.HandleFunc("/github/create-webhook", handleCreateWebhook)
+	http.HandleFunc("/metrics/track", handleMetricsTrack)
 
 	log.Printf("🚀 DockUp Agent v%s running on :%s, watching %d apps", Version, *port, len(registry))
 	if githubAppConfig != nil {
@@ -143,6 +155,90 @@ func loadGitHubAppConfig() {
 	githubAppLock.Lock()
 	githubAppConfig = &config
 	githubAppLock.Unlock()
+}
+
+func loadMetricsConfig() {
+	configPath := "/etc/dockup/metrics.json"
+	file, err := os.Open(configPath)
+	if err != nil {
+		// Metrics config is optional
+		return
+	}
+	defer file.Close()
+
+	var config MetricsConfig
+	if err := json.NewDecoder(file).Decode(&config); err != nil {
+		log.Printf("⚠️  Failed to parse metrics config: %v", err)
+		return
+	}
+
+	if config.N8NWebhookURL == "" {
+		log.Printf("⚠️  Metrics config incomplete (missing n8n_webhook_url)")
+		return
+	}
+
+	metricsLock.Lock()
+	metricsConfig = &config
+	metricsLock.Unlock()
+
+	log.Printf("📊 Metrics tracking enabled (VPS ID: %s)", config.VPSID)
+}
+
+// --- Metrics Tracking ---
+
+// trackMetric sends a metric event to the n8n webhook asynchronously
+func trackMetric(eventType string, appName string, data map[string]interface{}) {
+	// Check if metrics are configured
+	metricsLock.RLock()
+	config := metricsConfig
+	metricsLock.RUnlock()
+
+	if config == nil || config.N8NWebhookURL == "" {
+		// Metrics not configured, silently skip
+		return
+	}
+
+	// Run in goroutine to avoid blocking
+	go func() {
+		payload := map[string]interface{}{
+			"event_type": eventType,
+			"timestamp":  time.Now().UTC().Format(time.RFC3339),
+			"app_name":   appName,
+			"data":       data,
+		}
+
+		// Add VPS ID if configured
+		if config.VPSID != "" {
+			payload["vps_id"] = config.VPSID
+		}
+
+		jsonData, err := json.Marshal(payload)
+		if err != nil {
+			log.Printf("⚠️  Failed to marshal metrics payload: %v", err)
+			return
+		}
+
+		req, err := http.NewRequest("POST", config.N8NWebhookURL, bytes.NewBuffer(jsonData))
+		if err != nil {
+			log.Printf("⚠️  Failed to create metrics request: %v", err)
+			return
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("⚠️  Failed to send metrics: %v", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			body, _ := io.ReadAll(resp.Body)
+			log.Printf("⚠️  Metrics webhook returned error (status %d): %s", resp.StatusCode, string(body))
+		}
+	}()
 }
 
 // --- GitHub App Token Generation ---
@@ -363,9 +459,14 @@ func handleGithub(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 6. Trigger Async Deploy
-	go runDeploy(payload.Repository.Name, config)
+	go runDeploy(payload.Repository.Name, config, "github")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Deploy triggered"))
+
+	// Track webhook received
+	trackMetric("webhook_received", payload.Repository.Name, map[string]interface{}{
+		"webhook_type": "github",
+	})
 }
 
 func handleManual(w http.ResponseWriter, r *http.Request) {
@@ -391,8 +492,13 @@ func handleManual(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go runDeploy(appName, config)
+	go runDeploy(appName, config, "manual")
 	w.Write([]byte("Manual deploy triggered"))
+
+	// Track webhook received
+	trackMetric("webhook_received", appName, map[string]interface{}{
+		"webhook_type": "manual",
+	})
 }
 
 func handleReload(w http.ResponseWriter, r *http.Request) {
@@ -414,6 +520,9 @@ func handleReload(w http.ResponseWriter, r *http.Request) {
 	// Also reload GitHub App config
 	loadGitHubAppConfig()
 
+	// Also reload metrics config
+	loadMetricsConfig()
+
 	// Safely read githubAppConfig with proper locking
 	githubAppLock.RLock()
 	appID := ""
@@ -426,6 +535,20 @@ func handleReload(w http.ResponseWriter, r *http.Request) {
 		log.Printf("✅ GitHub App config reloaded (App ID: %s)", appID)
 	} else {
 		log.Printf("⚠️  GitHub App config not found or invalid")
+	}
+
+	// Safely read metricsConfig with proper locking
+	metricsLock.RLock()
+	vpsID := ""
+	if metricsConfig != nil {
+		vpsID = metricsConfig.VPSID
+	}
+	metricsLock.RUnlock()
+
+	if vpsID != "" {
+		log.Printf("✅ Metrics config reloaded (VPS ID: %s)", vpsID)
+	} else if metricsConfig != nil {
+		log.Printf("✅ Metrics config reloaded")
 	}
 
 	log.Printf("♻️  Registry reloaded, now watching %d apps", len(registry))
@@ -549,6 +672,12 @@ func handleCreateWebhook(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := json.Unmarshal(body, &hookResp); err == nil {
 			log.Printf("✅ Webhook created for %s (ID: %d)", req.Repo, hookResp.ID)
+			// Track webhook created
+			trackMetric("webhook_created", "", map[string]interface{}{
+				"repo_name":    req.Repo,
+				"webhook_id":   hookResp.ID,
+				"webhook_type": "github",
+			})
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			w.Write([]byte(fmt.Sprintf(`{"id": %d, "status": "created"}`, hookResp.ID)))
@@ -578,6 +707,12 @@ func handleCreateWebhook(w http.ResponseWriter, r *http.Request) {
 				for _, hook := range hooks {
 					if hook.Config.URL == req.URL {
 						log.Printf("✅ Webhook already exists for %s (ID: %d)", req.Repo, hook.ID)
+						// Track webhook created (already exists)
+						trackMetric("webhook_created", "", map[string]interface{}{
+							"repo_name":    req.Repo,
+							"webhook_id":   hook.ID,
+							"webhook_type": "github",
+						})
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
 						w.Write([]byte(fmt.Sprintf(`{"id": %d, "status": "exists"}`, hook.ID)))
@@ -591,6 +726,35 @@ func handleCreateWebhook(w http.ResponseWriter, r *http.Request) {
 	// Return error
 	log.Printf("❌ Failed to create webhook for %s: HTTP %d - %s", req.Repo, resp.StatusCode, string(body))
 	http.Error(w, fmt.Sprintf("GitHub API error (status %d): %s", resp.StatusCode, string(body)), resp.StatusCode)
+}
+
+func handleMetricsTrack(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+
+	var payload struct {
+		EventType string                 `json:"event_type"`
+		AppName   string                 `json:"app_name"`
+		Data      map[string]interface{} `json:"data"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid JSON", 400)
+		return
+	}
+
+	if payload.EventType == "" {
+		http.Error(w, "Missing event_type", 400)
+		return
+	}
+
+	// Track the metric
+	trackMetric(payload.EventType, payload.AppName, payload.Data)
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Metric tracked"))
 }
 
 // --- Helpers ---
@@ -610,7 +774,7 @@ func validateSignature(payload []byte, secret, signatureHeader string) bool {
 	return hmac.Equal([]byte(signatureHeader), []byte(expectedSig))
 }
 
-func runDeploy(appName string, config AppConfig) {
+func runDeploy(appName string, config AppConfig, deploymentType string) {
 	// Mutex for this specific app to prevent race conditions
 	lock, _ := deployLocks.LoadOrStore(appName, &sync.Mutex{})
 	mtx := lock.(*sync.Mutex)
@@ -620,6 +784,12 @@ func runDeploy(appName string, config AppConfig) {
 		return
 	}
 	defer mtx.Unlock()
+
+	// Track deployment start
+	startTime := time.Now()
+	trackMetric("deployment_started", appName, map[string]interface{}{
+		"deployment_type": deploymentType,
+	})
 
 	log.Printf("♻️  Starting deploy for %s...", appName)
 
@@ -679,9 +849,24 @@ func runDeploy(appName string, config AppConfig) {
 	cmd.Dir = config.Path // Run in the app directory
 
 	output, err := cmd.CombinedOutput()
+	duration := time.Since(startTime)
+	durationSeconds := int(duration.Seconds())
+
 	if err != nil {
 		log.Printf("❌ Deploy FAILED for %s:\n%s", appName, string(output))
+		// Track deployment failure
+		trackMetric("deployment_failure", appName, map[string]interface{}{
+			"deployment_type":  deploymentType,
+			"duration_seconds": durationSeconds,
+			"error_message":    strings.TrimSpace(string(output)),
+		})
 	} else {
 		log.Printf("✅ Deploy SUCCESS for %s", appName)
+		// Track deployment success
+		trackMetric("deployment_success", appName, map[string]interface{}{
+			"deployment_type":  deploymentType,
+			"duration_seconds": durationSeconds,
+			"minutes_saved":    20, // Fixed estimate per successful deployment
+		})
 	}
 }

@@ -2,6 +2,9 @@
 dockup-agent
 _remote_install.sh
 
+# macOS
+.DS_Store
+
 # Go build cache
 *.exe
 *.exe~
@@ -14,6 +17,9 @@ _remote_install.sh
 
 # Output of the go coverage tool
 *.out
+
+# Migrations
+migrations/
 
 # Go workspace file
 go.work
