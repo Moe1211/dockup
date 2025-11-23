@@ -476,6 +476,117 @@
             background: var(--primary);
             color: white;
         }
+
+        /* Stats Section */
+        .stats-section {
+            margin: 60px 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .stat-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.2);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-light);
+            margin: 10px 0;
+            background: linear-gradient(135deg, var(--primary-light) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stats-loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .stats-error {
+            text-align: center;
+            padding: 20px;
+            color: var(--error);
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
+            border-radius: 12px;
+        }
+
+        .stats-cache-info {
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 15px;
+            font-style: italic;
+        }
+
+        .stats-period-tabs {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .period-tab {
+            padding: 8px 16px;
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .period-tab:hover {
+            border-color: var(--primary);
+            color: var(--primary-light);
+        }
+
+        .period-tab.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -532,6 +643,30 @@
                         <p>Remembers your VPS connections for quicker deployments (NEW!)</p>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div class="section stats-section">
+            <div class="card">
+                <h2>📊 DockUp Statistics</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                    Real-time statistics from the DockUp community
+                </p>
+                
+                <div class="stats-period-tabs">
+                    <button class="period-tab active" data-period="total">All Time</button>
+                    <button class="period-tab" data-period="today">Today</button>
+                    <button class="period-tab" data-period="week">This Week</button>
+                    <button class="period-tab" data-period="month">This Month</button>
+                </div>
+
+                <div id="stats-container">
+                    <div class="stats-loading">
+                        <p>Loading statistics...</p>
+                    </div>
+                </div>
+
+                <div class="stats-cache-info" id="cache-info" style="display: none;"></div>
             </div>
         </div>
 
@@ -1111,6 +1246,217 @@ notifications:
                 }
             });
         });
+
+        // Stats API Configuration
+        const STATS_API_URL = 'https://n8n2.drninja.net/webhook/dockup/stats';
+        const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+        const CACHE_KEY = 'dockup_stats_cache';
+        const CACHE_TIMESTAMP_KEY = 'dockup_stats_cache_timestamp';
+
+        // Format numbers with commas
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '0';
+            const numValue = typeof num === 'string' ? parseFloat(num) : num;
+            if (isNaN(numValue)) return '0';
+            return numValue.toLocaleString();
+        }
+
+        // Format time (minutes/hours/days)
+        function formatTime(value, unit) {
+            if (!value || value === '0' || value === 0) return '0';
+            const num = typeof value === 'string' ? parseFloat(value) : value;
+            if (isNaN(num)) return '0';
+            return num.toLocaleString(undefined, { maximumFractionDigits: 1 }) + ' ' + unit;
+        }
+
+        // Get cached stats
+        function getCachedStats() {
+            try {
+                const cached = localStorage.getItem(CACHE_KEY);
+                const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+                
+                if (cached && timestamp) {
+                    const age = Date.now() - parseInt(timestamp);
+                    if (age < CACHE_DURATION) {
+                        return {
+                            data: JSON.parse(cached),
+                            age: age,
+                            fromCache: true
+                        };
+                    }
+                }
+            } catch (e) {
+                console.error('Error reading cache:', e);
+            }
+            return null;
+        }
+
+        // Cache stats
+        function cacheStats(data) {
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+                localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+            } catch (e) {
+                console.error('Error caching stats:', e);
+            }
+        }
+
+        // Fetch stats from API
+        async function fetchStats() {
+            try {
+                const response = await fetch(STATS_API_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    cacheStats(data[0]);
+                    return data[0];
+                }
+                throw new Error('Invalid data format');
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+                throw error;
+            }
+        }
+
+        // Get stats (with cache)
+        async function getStats() {
+            // Check cache first
+            const cached = getCachedStats();
+            if (cached) {
+                return {
+                    ...cached.data,
+                    _fromCache: true,
+                    _cacheAge: cached.age
+                };
+            }
+
+            // Fetch from API
+            const data = await fetchStats();
+            return {
+                ...data,
+                _fromCache: false,
+                _cacheAge: 0
+            };
+        }
+
+        // Render stats based on period
+        function renderStats(stats, period = 'total') {
+            const container = document.getElementById('stats-container');
+            
+            if (!stats) {
+                container.innerHTML = '<div class="stats-error">Failed to load statistics. Please try again later.</div>';
+                return;
+            }
+
+            let statsToShow = [];
+
+            if (period === 'total') {
+                statsToShow = [
+                    { label: 'Total Deployments', value: formatNumber(stats.total_deployments) },
+                    // { label: 'Successful Deployments', value: formatNumber(stats.successful_deployments), color: 'var(--success)' },
+                    // { label: 'Failed Deployments', value: formatNumber(stats.failed_deployments), color: 'var(--error)' },
+                    { label: 'Projects Deployed', value: formatNumber(stats.total_projects_deployed) },
+                    { label: 'VPS Instances', value: formatNumber(stats.total_vps_instances) },
+                    // { label: 'Success Rate', value: formatNumber(stats.success_rate_percent) + '%' },
+                    // { label: 'Total Minutes Saved', value: formatTime(stats.total_minutes_saved, 'min') },
+                    // { label: 'Total Hours Saved', value: formatTime(stats.total_hours_saved, 'hrs') },
+                    // { label: 'Total Days Saved', value: formatTime(stats.total_days_saved, 'days') },
+                    // { label: 'Avg Deployment Time', value: formatNumber(stats.avg_deployment_duration_seconds) + 's' },
+                    { label: 'Webhooks Created', value: formatNumber(stats.total_webhooks_created) },
+                    // { label: 'Webhooks Received', value: formatNumber(stats.total_webhooks_received) }
+                ];
+            } else if (period === 'today') {
+                statsToShow = [
+                    { label: 'Today Deployments', value: formatNumber(stats.today_deployments) },
+                    // { label: 'Today Successful', value: formatNumber(stats.today_successful_deployments), color: 'var(--success)' },
+                    // { label: 'Today Failed', value: formatNumber(stats.today_failed_deployments), color: 'var(--error)' },
+                    // { label: 'Today Minutes Saved', value: formatTime(stats.today_minutes_saved, 'min') },
+                    { label: 'Today Active Users', value: formatNumber(stats.today_active_users) }
+                ];
+            } else if (period === 'week') {
+                statsToShow = [
+                    { label: 'Week Deployments', value: formatNumber(stats.week_deployments) },
+                    // { label: 'Week Successful', value: formatNumber(stats.week_successful_deployments), color: 'var(--success)' },
+                    // { label: 'Week Failed', value: formatNumber(stats.week_failed_deployments), color: 'var(--error)' },
+                    // { label: 'Week Minutes Saved', value: formatTime(stats.week_minutes_saved, 'min') },
+                    { label: 'Week Active Users', value: formatNumber(stats.week_active_users) }
+                ];
+            } else if (period === 'month') {
+                statsToShow = [
+                    { label: 'Month Deployments', value: formatNumber(stats.month_deployments) },
+                    // { label: 'Month Successful', value: formatNumber(stats.month_successful_deployments), color: 'var(--success)' },
+                    // { label: 'Month Failed', value: formatNumber(stats.month_failed_deployments), color: 'var(--error)' },
+                    // { label: 'Month Minutes Saved', value: formatTime(stats.month_minutes_saved, 'min') },
+                    { label: 'Month Active Users', value: formatNumber(stats.month_active_users) }
+                ];
+            }
+
+            const statsHTML = `
+                <div class="stats-grid">
+                    ${statsToShow.map(stat => `
+                        <div class="stat-card">
+                            <div class="stat-value" ${stat.color ? `style="color: ${stat.color}"` : ''}>${stat.value}</div>
+                            <div class="stat-label">${stat.label}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            container.innerHTML = statsHTML;
+
+            // Show cache info
+            // const cacheInfo = document.getElementById('cache-info');
+            // if (stats._fromCache) {
+            //     const ageMinutes = Math.floor(stats._cacheAge / 60000);
+            //     const ageSeconds = Math.floor((stats._cacheAge % 60000) / 1000);
+            //     cacheInfo.textContent = `📦 Cached data (${ageMinutes}m ${ageSeconds}s old). Refreshing in ${Math.floor((CACHE_DURATION - stats._cacheAge) / 1000)}s...`;
+            //     cacheInfo.style.display = 'block';
+            // } else {
+            //     cacheInfo.textContent = '🔄 Live data from API';
+            //     cacheInfo.style.display = 'block';
+            // }
+        }
+
+        // Load and display stats
+        async function loadStats(period = 'total') {
+            const container = document.getElementById('stats-container');
+            container.innerHTML = '<div class="stats-loading"><p>Loading statistics...</p></div>';
+
+            try {
+                const stats = await getStats();
+                renderStats(stats, period);
+            } catch (error) {
+                container.innerHTML = '<div class="stats-error">⚠️ Failed to load statistics. Please try again later.</div>';
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Period tab switching
+        document.querySelectorAll('.period-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Update active state
+                document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Load stats for selected period
+                const period = this.getAttribute('data-period');
+                loadStats(period);
+            });
+        });
+
+        // Initial load
+        loadStats('total');
+
+        // Auto-refresh when cache expires
+        setInterval(() => {
+            const cached = getCachedStats();
+            if (!cached || cached.age >= CACHE_DURATION) {
+                const activePeriod = document.querySelector('.period-tab.active')?.getAttribute('data-period') || 'total';
+                loadStats(activePeriod);
+            }
+        }, 60000); // Check every minute
     </script>
 </body>
 </html>
