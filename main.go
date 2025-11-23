@@ -159,9 +159,6 @@ func loadGitHubAppConfig() {
 
 // generateVPSID generates a VPS ID from system snapshot (runs on the VPS)
 func generateVPSID() string {
-	// Get timestamp
-	timestamp := time.Now().Unix()
-
 	// Get OS distribution
 	osName := "unknown"
 	if data, err := os.ReadFile("/etc/os-release"); err == nil {
@@ -248,7 +245,7 @@ func generateVPSID() string {
 		}
 	}
 
-	return fmt.Sprintf("%d-%s-%sgb-%s", timestamp, osName, ramGB, location)
+	return fmt.Sprintf("%s-%sgb-%s", osName, ramGB, location)
 }
 
 func loadMetricsConfig() {

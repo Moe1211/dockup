@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.37"
+DOCKUP_VERSION="1.0.38"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -1331,9 +1331,6 @@ generate_vps_id() {
     
     # Get system information from remote VPS
     SYS_INFO=$(ssh $REMOTE "
-        # Get timestamp (Unix timestamp)
-        TIMESTAMP=\$(date +%s)
-        
         # Get OS distribution (lowercase, simplified)
         if [ -f /etc/os-release ]; then
             OS=\$(grep '^ID=' /etc/os-release | cut -d'=' -f2 | tr -d '\"' | tr '[:upper:]' '[:lower:]')
@@ -1385,16 +1382,15 @@ generate_vps_id() {
             fi
         fi
         
-        # Format: TIMESTAMP-OS-RAM-LOCATION
-        echo \"\${TIMESTAMP}-\${OS}-\${RAM_GB}gb-\${LOCATION}\"
+        # Format: OS-RAM-LOCATION
+        echo \"\${OS}-\${RAM_GB}gb-\${LOCATION}\"
     " 2>/dev/null || echo "")
     
     if [ -n "$SYS_INFO" ]; then
         echo "$SYS_INFO"
     else
         # Fallback: generate basic ID
-        TIMESTAMP=$(date +%s)
-        echo "${TIMESTAMP}-vps-unknown"
+        echo "vps-unknown"
     fi
 }
 
@@ -1499,7 +1495,7 @@ cmd_configure_metrics() {
             echo -e "${YELLOW}📝 VPS ID${NC}"
             echo ""
             echo "A unique identifier for this VPS instance based on system snapshot."
-            echo "Format: TIMESTAMP-OS-RAM-LOCATION"
+            echo "Format: OS-RAM-LOCATION"
             echo ""
             read -p "Use generated VPS ID? (Y/n): " USE_GENERATED
             if [ -z "$USE_GENERATED" ] || [ "$USE_GENERATED" = "y" ] || [ "$USE_GENERATED" = "Y" ]; then
