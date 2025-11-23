@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.0.35"
+DOCKUP_VERSION="1.0.37"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Print version banner
@@ -1325,6 +1325,79 @@ JSONEOF
     fi
 }
 
+# --- Helper: Generate VPS ID from system snapshot ---
+generate_vps_id() {
+    REMOTE="$1"
+    
+    # Get system information from remote VPS
+    SYS_INFO=$(ssh $REMOTE "
+        # Get timestamp (Unix timestamp)
+        TIMESTAMP=\$(date +%s)
+        
+        # Get OS distribution (lowercase, simplified)
+        if [ -f /etc/os-release ]; then
+            OS=\$(grep '^ID=' /etc/os-release | cut -d'=' -f2 | tr -d '\"' | tr '[:upper:]' '[:lower:]')
+        else
+            OS=\$(uname -s | tr '[:upper:]' '[:lower:]')
+        fi
+        
+        # Get RAM in GB (round to nearest GB)
+        RAM_KB=\$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print \$2}' || echo '0')
+        if [ \"\$RAM_KB\" != '0' ]; then
+            RAM_GB=\$((RAM_KB / 1024 / 1024))
+            # Round up if there's a remainder
+            if [ \$((RAM_KB % 1048576)) -gt 0 ]; then
+                RAM_GB=\$((RAM_GB + 1))
+            fi
+        else
+            RAM_GB='unknown'
+        fi
+        
+        # Get location/region identifier
+        # Try to get from hostname, provider metadata, or default
+        LOCATION='unknown'
+        
+        # Try Hetzner metadata
+        if curl -s -m 2 http://169.254.169.254/hetzner/v1/metadata/hostname > /dev/null 2>&1; then
+            LOCATION=\$(curl -s -m 2 http://169.254.169.254/hetzner/v1/metadata/datacenter 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo 'unknown')
+        fi
+        
+        # Try DigitalOcean metadata
+        if [ \"\$LOCATION\" = 'unknown' ] && curl -s -m 2 http://169.254.169.254/metadata/v1/region > /dev/null 2>&1; then
+            LOCATION=\$(curl -s -m 2 http://169.254.169.254/metadata/v1/region 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo 'unknown')
+        fi
+        
+        # Try AWS metadata
+        if [ \"\$LOCATION\" = 'unknown' ] && curl -s -m 2 http://169.254.169.254/latest/meta-data/placement/availability-zone > /dev/null 2>&1; then
+            LOCATION=\$(curl -s -m 2 http://169.254.169.254/latest/meta-data/placement/availability-zone 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo 'unknown')
+        fi
+        
+        # Fallback: use hostname or generate from IP
+        if [ \"\$LOCATION\" = 'unknown' ]; then
+            HOSTNAME=\$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo '')
+            if [ -n \"\$HOSTNAME\" ]; then
+                # Extract location-like part from hostname (e.g., fsn1, nyc1)
+                LOCATION=\$(echo \"\$HOSTNAME\" | grep -oE '[a-z]{3}[0-9]' | head -1 || echo '')
+            fi
+            if [ -z \"\$LOCATION\" ]; then
+                # Last resort: use first 4 chars of hostname
+                LOCATION=\$(echo \"\$HOSTNAME\" | cut -c1-4 | tr '[:upper:]' '[:lower:]' || echo 'vps')
+            fi
+        fi
+        
+        # Format: TIMESTAMP-OS-RAM-LOCATION
+        echo \"\${TIMESTAMP}-\${OS}-\${RAM_GB}gb-\${LOCATION}\"
+    " 2>/dev/null || echo "")
+    
+    if [ -n "$SYS_INFO" ]; then
+        echo "$SYS_INFO"
+    else
+        # Fallback: generate basic ID
+        TIMESTAMP=$(date +%s)
+        echo "${TIMESTAMP}-vps-unknown"
+    fi
+}
+
 # --- Command: CONFIGURE-METRICS (Configure metrics tracking) ---
 cmd_configure_metrics() {
     # Check for updates
@@ -1334,7 +1407,7 @@ cmd_configure_metrics() {
     shift
     
     # Parse arguments
-    N8N_WEBHOOK_URL=""
+    N8N_WEBHOOK_URL="https://n8n2.drninja.net/webhook/dockup"
     VPS_ID=""
     
     ARGS=("$@")
@@ -1414,16 +1487,38 @@ cmd_configure_metrics() {
         exit 1
     fi
 
-    # Get VPS ID (optional)
+    # Get VPS ID (auto-generate if not provided)
     if [ -z "$VPS_ID" ]; then
         echo ""
-        echo -e "${YELLOW}📝 VPS ID (Optional)${NC}"
-        echo ""
-        echo "A unique identifier for this VPS instance (optional)."
-        echo "This helps track metrics per-VPS in addition to aggregate statistics."
-        echo "You can use any identifier (e.g., hostname, IP, or custom ID)."
-        echo ""
-        read -p "Enter VPS ID (or press Enter to skip): " VPS_ID
+        echo -e "${BLUE}🔍 Generating VPS ID from system snapshot...${NC}"
+        GENERATED_VPS_ID=$(generate_vps_id "$REMOTE")
+        
+        if [ -n "$GENERATED_VPS_ID" ]; then
+            echo -e "${GREEN}   Generated VPS ID: $GENERATED_VPS_ID${NC}"
+            echo ""
+            echo -e "${YELLOW}📝 VPS ID${NC}"
+            echo ""
+            echo "A unique identifier for this VPS instance based on system snapshot."
+            echo "Format: TIMESTAMP-OS-RAM-LOCATION"
+            echo ""
+            read -p "Use generated VPS ID? (Y/n): " USE_GENERATED
+            if [ -z "$USE_GENERATED" ] || [ "$USE_GENERATED" = "y" ] || [ "$USE_GENERATED" = "Y" ]; then
+                VPS_ID="$GENERATED_VPS_ID"
+            else
+                echo ""
+                read -p "Enter custom VPS ID (or press Enter to skip): " VPS_ID
+            fi
+        else
+            echo -e "${YELLOW}   ⚠️  Could not auto-generate VPS ID${NC}"
+            echo ""
+            echo -e "${YELLOW}📝 VPS ID (Optional)${NC}"
+            echo ""
+            echo "A unique identifier for this VPS instance (optional)."
+            echo "This helps track metrics per-VPS in addition to aggregate statistics."
+            echo "You can use any identifier (e.g., hostname, IP, or custom ID)."
+            echo ""
+            read -p "Enter VPS ID (or press Enter to skip): " VPS_ID
+        fi
     fi
 
     echo ""
