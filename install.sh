@@ -19,6 +19,13 @@ DOCKUP_REPO_URL="${DOCKUP_REPO_URL:-https://raw.githubusercontent.com/Moe1211/do
 DOCKUP_SCRIPT_URL="${DOCKUP_SCRIPT_URL:-$DOCKUP_REPO_URL/dockup}"
 MAIN_GO_URL="${MAIN_GO_URL:-$DOCKUP_REPO_URL/main.go}"
 
+# Extract branch name from URL for display
+# URL format: https://raw.githubusercontent.com/user/repo/branch
+BRANCH_NAME=$(echo "$DOCKUP_REPO_URL" | sed -n 's|.*/\([^/]*\)$|\1|p')
+if [ -z "$BRANCH_NAME" ]; then
+    BRANCH_NAME="main"
+fi
+
 # Save the original working directory (where the user ran the command)
 # When piping to bash, we need to capture pwd before any cd operations
 # Try multiple methods to ensure we get the correct directory
@@ -43,6 +50,7 @@ trap "rm -rf $TMP_DIR" EXIT
 cd "$TMP_DIR"
 
 echo -e "${BLUE}🚀 DockUp Bootstrap Installer${NC}"
+echo -e "${BLUE}Installing from branch: ${YELLOW}$BRANCH_NAME${NC}"
 echo -e "${BLUE}Downloading DockUp...${NC}"
 
 # Download dockup script

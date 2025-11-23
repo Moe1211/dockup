@@ -12,14 +12,21 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Configuration - Points to feature/interactive-cli branch
-DOCKUP_REPO_URL="${DOCKUP_REPO_URL:-https://raw.githubusercontent.com/Moe1211/dockup/feature/interactive-cli}"
+# Configuration - Points to nightly/1.1.0 branch
+DOCKUP_REPO_URL="${DOCKUP_REPO_URL:-https://raw.githubusercontent.com/Moe1211/dockup/nightly/1.1.0}"
 DOCKUP_SCRIPT_URL="${DOCKUP_SCRIPT_URL:-$DOCKUP_REPO_URL/dockup}"
 MAIN_GO_URL="${MAIN_GO_URL:-$DOCKUP_REPO_URL/main.go}"
 
+# Extract branch name from URL for display
+# URL format: https://raw.githubusercontent.com/user/repo/branch
+BRANCH_NAME=$(echo "$DOCKUP_REPO_URL" | sed -n 's|.*/\([^/]*\)$|\1|p')
+if [ -z "$BRANCH_NAME" ]; then
+    BRANCH_NAME="nightly/1.1.0"
+fi
+
 echo -e "${BLUE}🚀 Installing DockUp Nightly Build globally...${NC}"
-echo -e "${YELLOW}⚠️  Installing from feature/interactive-cli branch (nightly build)${NC}"
-echo -e "${YELLOW}   This includes the new interactive CLI feature${NC}"
+echo -e "${BLUE}Installing from branch: ${YELLOW}$BRANCH_NAME${NC}"
+echo -e "${YELLOW}⚠️  This is a nightly build${NC}"
 echo ""
 
 # Determine install directory

@@ -17,7 +17,15 @@ DOCKUP_REPO_URL="${DOCKUP_REPO_URL:-https://raw.githubusercontent.com/Moe1211/do
 DOCKUP_SCRIPT_URL="${DOCKUP_SCRIPT_URL:-$DOCKUP_REPO_URL/dockup}"
 MAIN_GO_URL="${MAIN_GO_URL:-$DOCKUP_REPO_URL/main.go}"
 
+# Extract branch name from URL for display
+# URL format: https://raw.githubusercontent.com/user/repo/branch
+BRANCH_NAME=$(echo "$DOCKUP_REPO_URL" | sed -n 's|.*/\([^/]*\)$|\1|p')
+if [ -z "$BRANCH_NAME" ]; then
+    BRANCH_NAME="main"
+fi
+
 echo -e "${BLUE}🚀 Installing DockUp globally...${NC}"
+echo -e "${BLUE}Installing from branch: ${YELLOW}$BRANCH_NAME${NC}"
 echo ""
 
 # Determine install directory
