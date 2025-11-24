@@ -14,7 +14,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Version - update this when creating new tags
-DOCKUP_VERSION="1.1.4"
+DOCKUP_VERSION="1.1.5"
 DOCKUP_REPO="Moe1211/dockup"
 
 # Load modular components if they exist
@@ -2109,37 +2109,96 @@ get_remotes_file() {
 # Save a remote host to storage
 save_remote() {
     local remote="$1"
+    local short_name="${2:-}"
     [ -z "$remote" ] && return 1
     
-    local remotes_file=$(get_remotes_file)
+    local remotes_file
+    remotes_file=$(get_remotes_file)
     local temp_file="${remotes_file}.tmp"
     
     # Check if jq is available
     if command -v jq >/dev/null 2>&1; then
-        # Use jq to manage JSON array
+        local existing='[]'
         if [ -f "$remotes_file" ] && [ -s "$remotes_file" ]; then
-            # Add remote if it doesn't exist, then deduplicate
-            jq --arg remote "$remote" 'if (. | index($remote)) then . else . + [$remote] end | unique' "$remotes_file" > "$temp_file" 2>/dev/null
-        else
-            # Create new array
-            printf '%s\n' "$remote" | jq -R -s 'split("\n") | map(select(length > 0))' > "$temp_file" 2>/dev/null
+            existing="$(cat "$remotes_file")"
         fi
+        printf '%s' "$existing" | jq --arg remote "$remote" --arg short_name "$short_name" '
+            def normalize:
+                if type == "array" then
+                    map(
+                        if type == "string" then {host: .}
+                        elif (type == "object") and (.host? != null) then
+                            {host: .host} +
+                            (if (.short_name? // "" | length) > 0 then {short_name: (.short_name // "")} else {} end)
+                        else empty end
+                    )
+                else [] end;
+            def sanitized_entry:
+                {host: $remote} +
+                (if ($short_name | length) > 0 then {short_name: $short_name} else {} end);
+            normalize as $remotes
+            | if any($remotes[]?; .host == $remote) then
+                $remotes
+                | map(
+                    if .host == $remote then
+                        if ($short_name | length) > 0 then
+                            del(.short_name) + {short_name: $short_name}
+                        else
+                            .
+                        end
+                    else
+                        .
+                    end
+                )
+            else
+                $remotes + [sanitized_entry]
+            end
+        ' > "$temp_file" 2>/dev/null
         if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
             mv "$temp_file" "$remotes_file" 2>/dev/null || true
         else
             rm -f "$temp_file" 2>/dev/null || true
         fi
     else
-        # Fallback: simple text file, one per line
-        if [ ! -f "$remotes_file" ] || ! grep -Fxq "$remote" "$remotes_file" 2>/dev/null; then
-            echo "$remote" >> "$remotes_file"
+        local entry="$remote"
+        [ -n "$short_name" ] && entry="$short_name|$remote"
+        
+        if [ ! -f "$remotes_file" ]; then
+            printf '%s\n' "$entry" > "$remotes_file"
+            return 0
         fi
+        
+        : > "$temp_file"
+        local found=0
+        while IFS= read -r line || [ -n "$line" ]; do
+            [ -z "$line" ] && continue
+            local line_host="$line"
+            if [[ "$line" == *"|"* ]]; then
+                line_host="${line#*|}"
+            fi
+            if [ "$line_host" = "$remote" ]; then
+                found=1
+                if [ -n "$short_name" ]; then
+                    printf '%s\n' "$entry" >> "$temp_file"
+                else
+                    printf '%s\n' "$line" >> "$temp_file"
+                fi
+            else
+                printf '%s\n' "$line" >> "$temp_file"
+            fi
+        done < "$remotes_file"
+        
+        if [ $found -eq 0 ]; then
+            printf '%s\n' "$entry" >> "$temp_file"
+        fi
+        mv "$temp_file" "$remotes_file" 2>/dev/null || true
     fi
 }
 
 # Load stored remote hosts
 load_remotes() {
-    local remotes_file=$(get_remotes_file)
+    local remotes_file
+    remotes_file=$(get_remotes_file)
     
     if [ ! -f "$remotes_file" ]; then
         return 0
@@ -2147,7 +2206,27 @@ load_remotes() {
     
     # Check if jq is available
     if command -v jq >/dev/null 2>&1; then
-        jq -r '.[]' "$remotes_file" 2>/dev/null | grep -v '^$' || true
+        jq -r '
+            def normalize:
+                if type == "array" then
+                    map(
+                        if type == "string" then {host: .}
+                        elif (type == "object") and (.host? != null) then
+                            {host: .host} +
+                            (if (.short_name? // "" | length) > 0 then {short_name: (.short_name // "")} else {} end)
+                        else empty end
+                    )
+                else [] end;
+            normalize
+            | map(
+                if (.short_name // "" | length) > 0 then
+                    "\(.short_name)|\(.host)"
+                else
+                    .host
+                end
+            )
+            | .[]
+        ' "$remotes_file" 2>/dev/null | grep -v '^$' || true
     else
         # Fallback: read text file
         grep -v '^$' "$remotes_file" 2>/dev/null || true
@@ -2161,17 +2240,32 @@ prompt_remote() {
     
     # Load stored remotes
     local stored_remotes=()
+    local stored_short_names=()
     while IFS= read -r line; do
-        [ -n "$line" ] && stored_remotes+=("$line")
+        [ -z "$line" ] && continue
+        if [[ "$line" == *"|"* ]]; then
+            stored_short_names+=("${line%%|*}")
+            stored_remotes+=("${line#*|}")
+        else
+            stored_short_names+=("")
+            stored_remotes+=("$line")
+        fi
     done < <(load_remotes)
+    
+    local REMOTE_SHORT=""
+    local entered_new_remote=0
     
     # If we have stored remotes, show them as choices
     if [ ${#stored_remotes[@]} -gt 0 ]; then
         echo -e "${BLUE}$prompt_text${NC}" >&2
         echo -e "${YELLOW}Stored remotes:${NC}" >&2
         local i=1
-        for stored in "${stored_remotes[@]}"; do
-            echo -e "  ${GREEN}$i)${NC} $stored" >&2
+        for idx in "${!stored_remotes[@]}"; do
+            local label="${stored_remotes[$idx]}"
+            if [ -n "${stored_short_names[$idx]}" ]; then
+                label="${stored_short_names[$idx]} (${stored_remotes[$idx]})"
+            fi
+            echo -e "  ${GREEN}$i)${NC} $label" >&2
             ((i++))
         done
         echo -e "  ${GREEN}$i)${NC} Enter new remote" >&2
@@ -2187,6 +2281,7 @@ prompt_remote() {
             elif [ "$choice" -eq $i ]; then
                 # User wants to enter new remote
                 read -p "Remote host (user@host): " REMOTE_INPUT
+                entered_new_remote=1
             else
                 echo -e "${RED}❌ Invalid choice${NC}" >&2
                 return 1
@@ -2194,6 +2289,7 @@ prompt_remote() {
         else
             # User entered a remote directly
             REMOTE_INPUT="$choice"
+            entered_new_remote=1
         fi
     else
         # No stored remotes, use original prompt
@@ -2205,6 +2301,7 @@ prompt_remote() {
             echo -e "${BLUE}$prompt_text${NC}" >&2
             read -p "Remote host (user@host): " REMOTE_INPUT
         fi
+        entered_new_remote=1
     fi
     
     if [ -z "$REMOTE_INPUT" ]; then
@@ -2212,8 +2309,12 @@ prompt_remote() {
         return 1
     fi
     
+    if [ "$entered_new_remote" -eq 1 ]; then
+        read -p "Short name (optional): " REMOTE_SHORT
+    fi
+    
     # Save the remote for future use
-    save_remote "$REMOTE_INPUT"
+    save_remote "$REMOTE_INPUT" "$REMOTE_SHORT"
     
     echo "$REMOTE_INPUT"
 }
